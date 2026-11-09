@@ -62,6 +62,15 @@ describe("recommandation affichée dans le tableau", () => {
     expect(dashboardRecommendation("invite_interview", 76, undefined)).toBe("invite_interview");
     expect(dashboardRecommendation("verify", 43, undefined)).toBe("verify");
   });
+  it("jamais « Vérification nécessaire » en dessous du seuil de correspondance", () => {
+    expect(dashboardRecommendation("verify", 19, undefined, 50)).toBe(null);
+    expect(dashboardRecommendation("verify", 50, undefined, 50)).toBe(null);
+    expect(dashboardRecommendation("verify", null, undefined, 50)).toBe(null);
+  });
+  it("« Vérification nécessaire » conservée au-delà du seuil", () => {
+    expect(dashboardRecommendation("verify", 78, undefined, 50)).toBe("verify");
+    expect(dashboardRecommendation("verify", 78, "in_progress", 50)).toBe("verify");
+  });
 });
 
 describe("correspondance tolérante au libellé", () => {

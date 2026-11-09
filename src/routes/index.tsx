@@ -191,7 +191,7 @@ function Dashboard() {
                   </td>
                   <td className="px-4 py-3"><ScoreBar score={a.match_score} /></td>
                   <td className="px-4 py-3"><InterviewPill status={effectiveInterviewStatus(a.interviewStatus, a.match_score, job?.match_threshold)} /></td>
-                  <td className="px-4 py-3">{a.status === "decided" ? <span className="text-xs font-medium">{decisionCellLabel(a.decision)}</span> : <RecommendationPill value={dashboardRecommendation(a.recommendation, a.match_score, a.interviewStatus)} />}</td>
+                  <td className="px-4 py-3">{a.status === "decided" ? <span className="text-xs font-medium">{decisionCellLabel(a.decision)}</span> : <RecommendationPill value={dashboardRecommendation(a.recommendation, a.match_score, a.interviewStatus, job?.match_threshold)} />}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-right"><AnalyzeButton id={a.id} status={a.analysis_status} hasCv={!!a.cv_path} /><Button size="sm" variant="ghost" aria-label={`Supprimer ${a.candidates.full_name}`} onClick={(e) => { e.stopPropagation(); setConfirmDelete([a.id]); }}><Trash2 /></Button><Button size="sm" variant="ghost">Examiner <ChevronRight /></Button></td>
                 </tr>
               ))}

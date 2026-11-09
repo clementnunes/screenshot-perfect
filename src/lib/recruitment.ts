@@ -313,14 +313,17 @@ export const REVIEW_MIN_SCORE = 50;
 
 /**
  * The recommendation shown in the dashboard table. "À examiner" appears only when the
- * match is strictly above 50 % AND the pre-interview has been completed; the AI's own
- * "review" is hidden until then, other AI recommendations are kept.
+ * match is strictly above 50 % AND the pre-interview has been completed. "Vérification
+ * nécessaire" is never shown for a profile whose match does not exceed the job's global
+ * threshold. The AI's own "review" is hidden until then, other AI recommendations are kept.
  */
 export function dashboardRecommendation(
   recommendation: string | null,
   score: number | null | undefined,
   interviewStatus: string | undefined,
+  threshold?: number | null,
 ): string | null {
+  if (recommendation === "verify" && threshold != null && !requiresInterview(score, threshold)) return null;
   if (score != null && score > REVIEW_MIN_SCORE && interviewStatus === "completed") return "review";
   return recommendation === "review" ? null : recommendation;
 }
