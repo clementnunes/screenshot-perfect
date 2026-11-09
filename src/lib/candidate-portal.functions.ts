@@ -119,6 +119,8 @@ export const savePortalAnswer = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const saved = await supabaseAdmin.rpc("save_portal_answer", { p_application: app.id, p_question: data.questionId, p_text: data.text, p_index: data.index });
     if (saved.error) throw saved.error;
+    const { sendInterviewForSummary } = await import("./recruitment.server");
+    await sendInterviewForSummary(app.id, "answer_saved");
     return { savedAt: saved.data };
   });
 

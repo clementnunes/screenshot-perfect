@@ -7,7 +7,7 @@ import { parseCvResult } from "./cv-contract";
 export { parseCvResult };
 
 export const CV_BULK_ANALYSIS_WEBHOOK_URL = "https://nmudhoo.n8n-wsk.com/webhook-test/a4da0844-bdf2-498c-ab39-181adaa00475";
-export const INTERVIEW_SUMMARY_WEBHOOK_URL = "https://nmudhoo.n8n-wsk.com/webhook-test/ed7b87a7-9c58-44f3-8529-956fadf981ce";
+export const INTERVIEW_SUMMARY_WEBHOOK_URL = "https://nmudhoo.n8n-wsk.com/webhook/ed7b87a7-9c58-44f3-8529-956fadf981ce";
 export const CV_ANALYSIS_WEBHOOK_URL = "https://nmudhoo.n8n-wsk.com/webhook/a4da0844-bdf2-498c-ab39-181adaa00474";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
@@ -64,8 +64,8 @@ export async function audit(actor: string, action: string, entity: string, entit
 }
 
 /** Records a notification and forwards it to n8n when an outbound URL is configured. */
-/** Sends the finished pre-interview questions and answers to n8n, which owns the summary. */
-export async function sendInterviewForSummary(applicationId: string) {
+/** Sends the pre-interview questions and answers to n8n, which owns the summary. */
+export async function sendInterviewForSummary(applicationId: string, event: "interview_submitted" | "answer_saved" = "interview_submitted") {
   const { data: app } = await supabaseAdmin.from("applications").select("id, job_id, candidates(full_name, email), jobs(title), interviews(id, completed_at)").eq("id", applicationId).single();
   const iv = Array.isArray(app?.interviews) ? app?.interviews[0] : app?.interviews;
   if (!app || !iv) throw new Error("Aucun pré-entretien pour ce candidat.");
@@ -77,9 +77,9 @@ export async function sendInterviewForSummary(applicationId: string) {
   try {
     const res = await fetch(INTERVIEW_SUMMARY_WEBHOOK_URL, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-webhook-secret": readSecret("N8N_WEBHOOK_SECRET") ?? "", "idempotency-key": iv.id },
+      headers: { "content-type": "application/json", "x-webhook-secret": readSecret("N8N_WEBHOOK_SECRET") ?? "", "idempotency-key": event === "interview_submitted" ? iv.id : `${iv.id}:${event}:${Date.now()}` },
       body: JSON.stringify({
-        type: "interview_summary_requested",
+        type: event,
         application_id: applicationId,
         interview_id: iv.id,
         submitted_at: iv.completed_at,
