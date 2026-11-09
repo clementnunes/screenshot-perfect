@@ -98,7 +98,7 @@ export const analyzeNewCvs = createServerFn({ method: "POST" })
 /** Public candidate home page (test phase, no account): imports CVs into the current job and starts their analysis. */
 export const submitCandidateCvs = createServerFn({ method: "POST" })
   .inputValidator((d) =>
-    z.object({ cvs: z.array(z.object({ fullName: z.string().trim().min(2).max(120), email: z.string().trim().email().max(255), cv: cvInput })).min(1).max(10) }).parse(d),
+    z.object({ password: z.string().min(8).max(128), cvs: z.array(z.object({ fullName: z.string().trim().min(2).max(120), email: z.string().trim().email().max(255), cv: cvInput })).min(1).max(10) }).parse(d),
   )
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -108,7 +108,14 @@ export const submitCandidateCvs = createServerFn({ method: "POST" })
     const toAnalyze: string[] = [];
     for (const c of data.cvs) {
       const { applicationId, duplicate } = await createApplication({ jobId: job.id, fullName: c.fullName, email: c.email, source: "candidate" });
-      if (!duplicate) { await storeCv(applicationId, c.cv); toAnalyze.push(applicationId); }
+      if (!duplicate) {
+        await storeCv(applicationId, c.cv); toAnalyze.push(applicationId);
+        const { data: app } = await supabaseAdmin.from("applications").select("candidate_id").eq("id", applicationId).single();
+        if (app) {
+          const { hashPassword } = await import("./password");
+          await supabaseAdmin.from("candidate_credentials").upsert({ candidate_id: app.candidate_id, password_hash: await hashPassword(data.password), updated_at: new Date().toISOString() });
+        }
+      }
       results.push({ email: c.email, duplicate });
     }
     const { analyzeImportedCvs } = await import("./recruitment.server");

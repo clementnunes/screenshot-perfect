@@ -19,6 +19,8 @@ export function BulkCvDialog({ jobId, publicMode = false }: { jobId?: string; pu
   const analyze = useServerFn(analyzeNewCvs);
   const submitPublic = useServerFn(submitCandidateCvs);
   const [done, setDone] = useState(false);
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const qc = useQueryClient();
   const update = (id: string, patch: Partial<Row>) => setRows((rs) => rs.map((r) => r.id === id ? { ...r, ...patch } : r));
   async function select(files: FileList | null) {
@@ -40,11 +42,13 @@ export function BulkCvDialog({ jobId, publicMode = false }: { jobId?: string; pu
     try {
       const pending = rows.filter((r) => !r.result);
       if (publicMode) {
+        if (password.length < 8) { toast.error("Le mot de passe doit contenir au moins 8 caractères."); return; }
+        if (password !== confirm) { toast.error("Les mots de passe ne correspondent pas."); return; }
         pending.forEach((r) => update(r.id, { status: "Envoi en cours…" }));
         const cvs = [];
         for (const r of pending) cvs.push({ fullName: r.name, email: r.email, cv: await prepareCv(r.file) });
         try {
-          const res = await submitPublic({ data: { cvs } });
+          const res = await submitPublic({ data: { cvs, password } });
           pending.forEach((r, i) => update(r.id, { status: res.results[i]?.duplicate ? "Candidature déjà reçue" : "CV reçu — analyse lancée" }));
           setDone(true);
         } catch (e) { pending.forEach((r) => update(r.id, { status: e instanceof Error ? e.message : "Échec de l’envoi" })); }
@@ -83,6 +87,7 @@ export function BulkCvDialog({ jobId, publicMode = false }: { jobId?: string; pu
           <p role="status" className="text-xs text-muted-foreground">{r.status}</p>
           {r.result && !publicMode && <CandidateLinkBox {...r.result} />}
         </div>)}
+        {publicMode && !done && <div className="space-y-2"><p className="text-sm text-muted-foreground">Choisissez un mot de passe : il vous servira à accéder à votre pré-entretien.</p><div className="grid gap-2 sm:grid-cols-2"><Input aria-label="Mot de passe" placeholder="Mot de passe (8 caractères min.)" type="password" autoComplete="new-password" required minLength={8} maxLength={128} value={password} disabled={busy} onChange={(e) => setPassword(e.target.value)} /><Input aria-label="Confirmation du mot de passe" placeholder="Confirmez le mot de passe" type="password" autoComplete="new-password" required minLength={8} maxLength={128} value={confirm} disabled={busy} onChange={(e) => setConfirm(e.target.value)} /></div>{confirm && password !== confirm && <p className="text-xs text-destructive">Les mots de passe ne correspondent pas.</p>}</div>}
         <Button type="submit" disabled={busy || done || !rows.some((r) => !r.result)}>{busy ? "Envoi et analyse en cours…" : publicMode ? (done ? "CV envoyé" : "Envoyer mon CV") : `Importer ${rows.filter((r) => !r.result).length} CV`}</Button>
       </form>
     </DialogContent>

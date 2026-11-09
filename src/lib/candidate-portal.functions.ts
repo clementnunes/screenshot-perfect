@@ -45,9 +45,17 @@ async function findTestApplicationId(email: string) {
 }
 
 export const requestCandidateTestAccess = createServerFn({ method: "POST" })
-  .inputValidator((d) => z.object({ email: emailField }).parse(d))
+  .inputValidator((d) => z.object({ email: emailField, password: z.string().max(128).optional() }).parse(d))
   .handler(async ({ data }) => {
     const app = await findTestApplicationId(data.email);
+    // Candidates who applied from /candidats chose a password: it is required to enter the pre-interview.
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: cand } = await supabaseAdmin.from("candidates").select("id").ilike("email", data.email.trim()).limit(1).maybeSingle();
+    const { data: cred } = cand ? await supabaseAdmin.from("candidate_credentials").select("password_hash").eq("candidate_id", cand.id).maybeSingle() : { data: null };
+    if (cred) {
+      const { verifyPassword } = await import("./password");
+      if (!data.password || !(await verifyPassword(data.password, cred.password_hash))) throw new Error("E-mail ou mot de passe incorrect.");
+    }
     const { prepareExistingQuestions } = await import("./candidate-portal.server");
     await prepareExistingQuestions(app.id, app.job_id);
     const { setCookie, deleteCookie } = await import("@tanstack/react-start/server");
