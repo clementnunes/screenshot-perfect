@@ -19,22 +19,30 @@ export const requestCandidateAccess = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+const emailField = z.string().trim().email().max(255);
+const withEmail = z.object({ email: emailField.optional() });
+
+async function findTestApplicationId(email: string) {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data: candidate, error } = await supabaseAdmin.from("candidates").select("id").ilike("email", email.trim()).limit(1).maybeSingle();
+  if (error) throw error;
+  if (!candidate) throw new Error("Aucune candidature pour cette adresse e-mail.");
+  const { data: app, error: appError } = await supabaseAdmin.from("applications").select("id,job_id,cv_path").eq("candidate_id", candidate.id).not("cv_path", "is", null).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (appError) throw appError;
+  if (!app?.cv_path) throw new Error("Aucun CV disponible pour cette candidature.");
+  return app;
+}
+
 export const requestCandidateTestAccess = createServerFn({ method: "POST" })
-  .inputValidator((d) => z.object({ email: z.string().trim().email().max(255) }).parse(d))
+  .inputValidator((d) => z.object({ email: emailField }).parse(d))
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: candidate, error } = await supabaseAdmin.from("candidates").select("id").eq("email", data.email.toLowerCase()).maybeSingle();
-    if (error) throw error;
-    if (!candidate) throw new Error("Aucune candidature pour cette adresse e-mail.");
-    const { data: app, error: appError } = await supabaseAdmin.from("applications").select("id,job_id,cv_path").eq("candidate_id", candidate.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
-    if (appError) throw appError;
-    if (!app?.cv_path) throw new Error("Aucun CV disponible pour cette candidature.");
+    const app = await findTestApplicationId(data.email);
     const { prepareExistingQuestions } = await import("./candidate-portal.server");
     await prepareExistingQuestions(app.id, app.job_id);
-    const { setCookie, deleteCookie, getRequest } = await import("@tanstack/react-start/server");
-    const secure = new URL(getRequest().url).protocol === "https:";
+    const { setCookie, deleteCookie } = await import("@tanstack/react-start/server");
     deleteCookie("orvane-candidate", { path: "/" });
-    setCookie("orvane-candidate-test", app.id, { httpOnly: true, secure, sameSite: secure ? "none" : "lax", path: "/", maxAge: 7 * 24 * 3600 });
+    // The browser also keeps the email and sends it with each call, so access survives blocked iframe cookies.
+    setCookie("orvane-candidate-test", app.id, { httpOnly: true, secure: true, sameSite: "none", partitioned: true, path: "/", maxAge: 7 * 24 * 3600 });
     return { ok: true };
   });
 
@@ -45,9 +53,9 @@ export const leaveCandidatePortal = createServerFn({ method: "POST" }).handler(a
   return { ok: true };
 });
 
-async function requireCandidate() {
+async function requireCandidate(email?: string) {
   const { getCookie } = await import("@tanstack/react-start/server");
-  const testId = getCookie("orvane-candidate-test");
+  const testId = email ? (await findTestApplicationId(email)).id : getCookie("orvane-candidate-test");
   if (testId) {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: app, error } = await supabaseAdmin.from("applications").select("*, candidates(full_name,email), jobs(*), interviews(*)").eq("id", z.string().uuid().parse(testId)).maybeSingle();
@@ -66,8 +74,8 @@ async function requireCandidate() {
   return { ...app, interviews: interview };
 }
 
-export const getPortalSession = createServerFn({ method: "POST" }).handler(async () => {
-  const app = await requireCandidate();
+export const getPortalSession = createServerFn({ method: "POST" }).inputValidator((d) => withEmail.parse(d ?? {})).handler(async ({ data }) => {
+  const app = await requireCandidate(data.email);
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const iv = app.interviews;
   if (!iv) throw new Error("Pré-entretien indisponible.");
@@ -79,8 +87,8 @@ export const getPortalSession = createServerFn({ method: "POST" }).handler(async
   return { job: { title: app.jobs.title, location: app.jobs.location, contract_type: app.jobs.contract_type, confirmation_message: app.jobs.confirmation_message }, firstName: app.candidates.full_name.split(" ")[0], expiresAt: app.token_expires_at, consent: !!app.consent_at, status: iv.status, currentIndex: iv.current_index, startedAt: iv.started_at, submittedAt: iv.completed_at, questions: questions ?? [], answers: answers ?? [] };
 });
 
-export const startPortalInterview = createServerFn({ method: "POST" }).inputValidator((d) => z.object({ consent: z.literal(true) }).parse(d)).handler(async () => {
-  const app = await requireCandidate();
+export const startPortalInterview = createServerFn({ method: "POST" }).inputValidator((d) => z.object({ consent: z.literal(true), email: emailField.optional() }).parse(d)).handler(async ({ data }) => {
+  const app = await requireCandidate(data.email);
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const now = new Date().toISOString();
   const identity = await supabaseAdmin.from("applications").update({ identity_confirmed_at: now, consent_at: now }).eq("id", app.id);
@@ -91,9 +99,9 @@ export const startPortalInterview = createServerFn({ method: "POST" }).inputVali
 });
 
 export const savePortalAnswer = createServerFn({ method: "POST" })
-  .inputValidator((d) => z.object({ questionId: z.string().uuid(), text: z.string().max(5000), index: z.number().int().min(0) }).parse(d))
+  .inputValidator((d) => z.object({ questionId: z.string().uuid(), text: z.string().max(5000), index: z.number().int().min(0), email: emailField.optional() }).parse(d))
   .handler(async ({ data }) => {
-    const app = await requireCandidate();
+    const app = await requireCandidate(data.email);
     if (!app.consent_at) throw new Error("Veuillez accepter le traitement de vos réponses.");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const saved = await supabaseAdmin.rpc("save_portal_answer", { p_application: app.id, p_question: data.questionId, p_text: data.text, p_index: data.index });
@@ -102,9 +110,9 @@ export const savePortalAnswer = createServerFn({ method: "POST" })
   });
 
 export const submitPortalInterview = createServerFn({ method: "POST" })
-  .inputValidator((d) => z.object({ confirmed: z.literal(true) }).parse(d))
-  .handler(async () => {
-    const app = await requireCandidate();
+  .inputValidator((d) => z.object({ confirmed: z.literal(true), email: emailField.optional() }).parse(d))
+  .handler(async ({ data }) => {
+    const app = await requireCandidate(data.email);
     if (!app.consent_at) throw new Error("Veuillez accepter le traitement de vos réponses.");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const submitted = await supabaseAdmin.rpc("submit_portal_interview", { p_application: app.id });
