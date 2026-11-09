@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeMatchScore, dashboardRecommendation, matchesFilter, weightsAreValid } from "./recruitment";
+import { computeMatchScore, dashboardRecommendation, decisionCellLabel, latestDecision, matchesFilter, weightsAreValid } from "./recruitment";
 
 const criteria = [
   { name: "Management", weight: 25 },
@@ -67,5 +67,29 @@ describe("recommandation affichée dans le tableau", () => {
 describe("correspondance tolérante au libellé", () => {
   it("reconnaît un critère dont le libellé est suivi de précisions", () => {
     expect(computeMatchScore([{ name: "Management", weight: 100 }], [{ criterion: "Management (obligatoire, 25 %)", status: "documented" }])).toBe(100);
+  });
+});
+
+describe("décision affichée dans le tableau", () => {
+  it("désigne la dernière décision enregistrée", () => {
+    expect(latestDecision([
+      { decision: "reject", created_at: "2026-01-02T10:00:00Z" },
+      { decision: "invite_meeting", created_at: "2026-01-05T09:00:00Z" },
+    ])).toBe("invite_meeting");
+    expect(latestDecision([])).toBe(null);
+    expect(latestDecision(undefined)).toBe(null);
+  });
+  it("« Décision prise : RDV » après une invitation à un rendez-vous", () => {
+    expect(decisionCellLabel("invite_meeting")).toBe("Décision prise : RDV");
+  });
+  it("« Décision prise : refus » après un refus", () => {
+    expect(decisionCellLabel("reject")).toBe("Décision prise : refus");
+  });
+  it("« Décision prise : vérification » après une vérification complémentaire", () => {
+    expect(decisionCellLabel("request_verification")).toBe("Décision prise : vérification");
+  });
+  it("reste « Décision prise » sans décision connue", () => {
+    expect(decisionCellLabel(null)).toBe("Décision prise");
+    expect(decisionCellLabel("autre_chose")).toBe("Décision prise");
   });
 });

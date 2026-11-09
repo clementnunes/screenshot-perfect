@@ -72,6 +72,28 @@ export const DECISION_LABEL: Record<string, string> = {
   reject: "Candidature refusée",
 };
 
+/** Short label shown after "Décision prise" in the dashboard table. */
+export const DECISION_SHORT: Record<string, string> = {
+  invite_meeting: "RDV",
+  request_verification: "vérification",
+  reject: "refus",
+};
+
+/** The most recent decision recorded for a candidature, if any. */
+export function latestDecision(
+  decisions: { decision: string; created_at: string }[] | null | undefined,
+): string | null {
+  if (!decisions || decisions.length === 0) return null;
+  const sorted = [...decisions].sort((a, b) => b.created_at.localeCompare(a.created_at));
+  return sorted[0]?.decision ?? null;
+}
+
+/** "Décision prise : RDV" / "Décision prise : refus", or plain "Décision prise". */
+export function decisionCellLabel(decision: string | null): string {
+  const short = decision ? DECISION_SHORT[decision] : undefined;
+  return short ? `Décision prise : ${short}` : "Décision prise";
+}
+
 export type DashboardFilter = "all" | "to_analyze" | "interview" | "to_review" | "decided";
 
 export const FILTERS: { key: DashboardFilter; label: string }[] = [

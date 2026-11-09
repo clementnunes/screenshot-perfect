@@ -20,7 +20,7 @@ import { AnalysisPill, InterviewPill, RecommendationPill, ScoreBar } from "@/com
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { FILTERS, analysisScore, dashboardRecommendation, effectiveInterviewStatus, analysisSkills, matchesFilter, type CvAnalysisView, type DashboardFilter } from "@/lib/recruitment";
+import { FILTERS, analysisScore, dashboardRecommendation, decisionCellLabel, effectiveInterviewStatus, analysisSkills, latestDecision, matchesFilter, type CvAnalysisView, type DashboardFilter } from "@/lib/recruitment";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
@@ -51,13 +51,13 @@ function Dashboard() {
       if (!job) return [];
       const { data, error } = await supabase
         .from("applications")
-        .select("id, status, cv_path, analysis_status, match_score, recommendation, created_at, candidates(full_name, email), interviews(status), cv_analyses(result, created_at)")
+        .select("id, status, cv_path, analysis_status, match_score, recommendation, created_at, candidates(full_name, email), interviews(status), cv_analyses(result, created_at), recruitment_decisions(decision, created_at)")
         .eq("job_id", job.id)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data.map((a) => {
         const latest = [...(a.cv_analyses ?? [])].sort((x, y) => y.created_at.localeCompare(x.created_at))[0]?.result as CvAnalysisView | undefined;
-        return { ...a, analysis: latest, skills: analysisSkills(latest), match_score: analysisScore(latest, a.match_score), interviewStatus: a.interviews?.status };
+        return { ...a, analysis: latest, skills: analysisSkills(latest), match_score: analysisScore(latest, a.match_score), interviewStatus: a.interviews?.status, decision: latestDecision(a.recruitment_decisions) };
       });
     },
   });
@@ -191,7 +191,7 @@ function Dashboard() {
                   </td>
                   <td className="px-4 py-3"><ScoreBar score={a.match_score} /></td>
                   <td className="px-4 py-3"><InterviewPill status={effectiveInterviewStatus(a.interviewStatus, a.match_score, job?.match_threshold)} /></td>
-                  <td className="px-4 py-3">{a.status === "decided" ? <span className="text-xs font-medium">Décision prise</span> : <RecommendationPill value={dashboardRecommendation(a.recommendation, a.match_score, a.interviewStatus)} />}</td>
+                  <td className="px-4 py-3">{a.status === "decided" ? <span className="text-xs font-medium">{decisionCellLabel(a.decision)}</span> : <RecommendationPill value={dashboardRecommendation(a.recommendation, a.match_score, a.interviewStatus)} />}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-right"><AnalyzeButton id={a.id} status={a.analysis_status} hasCv={!!a.cv_path} /><Button size="sm" variant="ghost" aria-label={`Supprimer ${a.candidates.full_name}`} onClick={(e) => { e.stopPropagation(); setConfirmDelete([a.id]); }}><Trash2 /></Button><Button size="sm" variant="ghost">Examiner <ChevronRight /></Button></td>
                 </tr>
               ))}
