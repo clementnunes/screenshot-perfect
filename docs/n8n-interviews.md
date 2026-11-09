@@ -31,6 +31,19 @@ Publier avant les callbacks de production. Le lien candidat et son cookie permet
 
 L’application n’analyse plus les CV avec son IA. Lorsqu’un CV doit être analysé, elle envoie en POST JSON l’événement `cv_analysis_requested` au webhook `https://nmudhoo.n8n-wsk.com/webhook-test/a4da0844-bdf2-498c-ab39-181adaa00474` (endpoint de test : le workflow doit être ouvert dans l’éditeur n8n pour écouter) : `application_id`, `job` (intitulé, description, missions, compétences, expérience, diplômes), `criteria` (`name`, `weight`, `mandatory`) et `cv_pages` (texte par page).
 
+### Analyse en masse (sélection de candidatures)
+
+Bouton « Analyser » sur une sélection : **une seule requête** vers le webhook d’analyse en masse `https://nmudhoo.n8n-wsk.com/webhook-test/a4da0844-bdf2-498c-ab39-181adaa00475`, dont le corps est le **tableau des objets candidature**, dans l’ordre de la sélection :
+
+```json
+[
+  { "type": "cv_analysis_requested", "application_id": "…", "job": {…}, "criteria": […], "cv_pages": ["…"] },
+  { "type": "cv_analysis_requested", "application_id": "…", "job": {…}, "criteria": […], "cv_pages": ["…"] }
+]
+```
+
+Chaque objet a exactement la forme de la requête d’analyse unitaire. n8n peut répondre dans le même ordre (ou avec un `application_id` par objet) ; sinon il renvoie chaque résultat par `POST /api/public/webhook/cv-analysis-result`. Une candidature sans texte de CV exploitable est écartée de la requête, marquée en erreur, et n8n ne reçoit que les candidatures analysables (50 maximum par envoi).
+
 n8n peut répondre directement avec le résultat (« Respond to Webhook », objet `result` ou résultat seul), ou plus tard via `POST /api/public/webhook/cv-analysis-result` :
 
 ```json

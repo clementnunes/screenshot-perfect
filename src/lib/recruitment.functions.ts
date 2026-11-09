@@ -86,6 +86,16 @@ export const retryCvAnalysis = createServerFn({ method: "POST" })
     return runCvAnalysis(data.applicationId, data.bulk ? CV_BULK_ANALYSIS_WEBHOOK_URL : CV_ANALYSIS_WEBHOOK_URL);
   });
 
+/** Bulk analysis: n8n gets one request whose body is the array of candidature objects. */
+export const analyzeCvsInBulk = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ applicationIds: z.array(z.string().uuid()).min(1).max(50) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await assertRecruiter(context.supabase as never);
+    const { CV_BULK_ANALYSIS_WEBHOOK_URL, runCvAnalysisBatch } = await import("./recruitment.server");
+    return runCvAnalysisBatch(data.applicationIds, CV_BULK_ANALYSIS_WEBHOOK_URL);
+  });
+
 export const retryInterviewAnalysis = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ applicationId: z.string().uuid() }).parse(d))

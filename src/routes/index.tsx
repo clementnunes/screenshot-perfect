@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { ChevronRight, FileText, Search } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { deleteApplications, retryCvAnalysis } from "@/lib/recruitment.functions";
+import { analyzeCvsInBulk, deleteApplications, retryCvAnalysis } from "@/lib/recruitment.functions";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
@@ -76,6 +76,7 @@ function Dashboard() {
   const qc = useQueryClient();
   const del = useServerFn(deleteApplications);
   const analyze = useServerFn(retryCvAnalysis);
+  const analyzeBulk = useServerFn(analyzeCvsInBulk);
   const visibleSelected = rows.filter((a) => selected.has(a.id));
   const allChecked = rows.length > 0 && visibleSelected.length === rows.length;
   const toggle = (id: string) => setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -95,15 +96,19 @@ function Dashboard() {
     const targets = visibleSelected.filter((a) => a.cv_path && !["extracting", "analyzing"].includes(a.analysis_status));
     if (!targets.length) { toast.error("Aucun CV analysable dans la sélection."); return; }
     setBulkBusy(true);
-    let ok = 0;
-    // Sequential on purpose: one n8n request at a time.
-    for (const a of targets) {
-      try { const r = await analyze({ data: { applicationId: a.id, bulk: true } }); if (r.ok) ok++; else toast.error(`${a.candidates.full_name} : ${r.error}`); }
-      catch (e) { toast.error(`${a.candidates.full_name} : ${e instanceof Error ? e.message : "Erreur"}`); }
-      qc.invalidateQueries({ queryKey: ["applications"] });
-    }
-    setBulkBusy(false);
-    if (ok) toast.success(`Analyse lancée pour ${ok} CV`);
+    try {
+      // One n8n request for the whole selection: body = [{ candidature }, { candidature }, ...]
+      const r = await analyzeBulk({ data: { applicationIds: targets.map((a) => a.id) } });
+      if (!r.ok) toast.error(r.error);
+      else {
+        toast.success(`Analyse lancée pour ${r.analyzed} CV`);
+        for (const f of r.failed) {
+          const name = visibleSelected.find((a) => a.id === f.id)?.candidates.full_name ?? "Candidature";
+          toast.error(`${name} : ${f.error}`);
+        }
+      }
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Erreur"); }
+    finally { setBulkBusy(false); qc.invalidateQueries({ queryKey: ["applications"] }); }
   }
 
   if (isLoading) return null;

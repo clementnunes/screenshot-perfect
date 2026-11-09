@@ -4,6 +4,10 @@ import { z } from "zod";
 import { readSecret } from "./runtime-env";
 import { prepareExistingQuestions } from "./candidate-portal.server";
 import { parseCvResult } from "./cv-contract";
+import { cvAnalysisPayload, inlineCvResults, type CvAnalysisPayload, type CvAnalysisSource } from "./cv-analysis-request";
+
+export { cvAnalysisPayload, inlineCvResults } from "./cv-analysis-request";
+export type { CvAnalysisPayload, CvAnalysisSource, CvCriterion, CvJobSnapshot } from "./cv-analysis-request";
 import { extractInterviewSummary } from "./interview-summary";
 export { parseCvResult };
 
@@ -211,27 +215,16 @@ export async function runCvAnalysis(applicationId: string, webhookUrl = CV_ANALY
   await supabaseAdmin.from("applications").update({ analysis_status: "extracting", analysis_error: null }).eq("id", applicationId);
 
   try {
-    const pages = (app.cv_pages as string[] | null) ?? (app.cv_text ? [app.cv_text] : []);
-    const cvText = pages.map((p, i) => `--- CV, page ${i + 1} ---\n${p}`).join("\n\n").slice(0, 60000);
-    if (cvText.replace(/[-\sCVpage\d,]/g, "").length < 50) {
-      throw new Error("Le texte du CV n'a pas pu être extrait (PDF scanné ou vide). Demandez un CV au format PDF texte.");
-    }
+    const { data: criteria } = await supabaseAdmin.from("job_criteria").select("*").eq("job_id", job.id).order("position");
+    const payload = cvAnalysisPayload(app as unknown as CvAnalysisSource, criteria ?? []);
 
     await supabaseAdmin.from("applications").update({ analysis_status: "analyzing" }).eq("id", applicationId);
-
-    const { data: criteria } = await supabaseAdmin.from("job_criteria").select("*").eq("job_id", job.id).order("position");
 
     // CV analysis is delegated to n8n; it answers through the "cv-analysis-result" callback.
     const res = await fetch(webhookUrl, {
       method: "POST",
       headers: { "content-type": "application/json", "x-webhook-secret": readSecret("N8N_WEBHOOK_SECRET") ?? "", "idempotency-key": crypto.randomUUID() },
-      body: JSON.stringify({
-        type: "cv_analysis_requested",
-        application_id: applicationId,
-        job: { id: job.id, title: job.title, description: job.description, missions: job.missions, skills: job.skills, experience: job.experience, diplomas: job.diplomas },
-        criteria: (criteria ?? []).map((c) => ({ name: c.name, weight: c.weight, mandatory: c.mandatory })),
-        cv_pages: pages,
-      }),
+      body: JSON.stringify(payload),
     });
     if (!res.ok) throw new Error(res.status === 404 ? "Le webhook n8n d’analyse n’est pas actif (activez le workflow ET-02 dans n8n)." : `n8n a refusé l’analyse (${res.status}).`);
     // n8n may answer directly with the analysis, or later through the "cv-analysis-result" callback.
@@ -247,6 +240,72 @@ export async function runCvAnalysis(applicationId: string, webhookUrl = CV_ANALY
   }
 }
 
+
+/**
+ * Bulk CV analysis: n8n receives ONE request whose body is the array of
+ * candidature objects, e.g. `[{ candidature }, { candidature }]`.
+ * Each object has the same shape as the single-analysis request.
+ */
+export async function runCvAnalysisBatch(applicationIds: string[], webhookUrl = CV_BULK_ANALYSIS_WEBHOOK_URL) {
+  const ids = [...new Set(applicationIds)].slice(0, 50);
+  const failed: { id: string; error: string }[] = [];
+  if (!ids.length) return { ok: false as const, error: "Aucune candidature sélectionnée.", analyzed: 0, saved: 0, failed };
+
+  const { data: apps, error } = await supabaseAdmin.from("applications").select("*, jobs(*)").in("id", ids);
+  if (error || !apps?.length) return { ok: false as const, error: "Candidatures introuvables.", analyzed: 0, saved: 0, failed };
+
+  const { data: criteria } = await supabaseAdmin
+    .from("job_criteria")
+    .select("name, weight, mandatory, job_id")
+    .in("job_id", [...new Set(apps.map((a) => a.job_id as string))])
+    .order("position");
+
+  const payloads: CvAnalysisPayload[] = [];
+  for (const app of apps) {
+    const jobCriteria = (criteria ?? []).filter((c) => c.job_id === app.job_id);
+    try {
+      payloads.push(cvAnalysisPayload(app as unknown as CvAnalysisSource, jobCriteria));
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Erreur inconnue";
+      failed.push({ id: app.id as string, error: message });
+      await supabaseAdmin.from("applications").update({ analysis_status: "error", analysis_error: message }).eq("id", app.id);
+      await audit("n8n", "cv_analysis_failed", "application", app.id as string, { message });
+    }
+  }
+  if (!payloads.length) return { ok: false as const, error: failed[0]?.error ?? "Aucun CV analysable.", analyzed: 0, saved: 0, failed };
+
+  const targetIds = payloads.map((p) => p.application_id);
+  await supabaseAdmin.from("applications").update({ analysis_status: "analyzing", analysis_error: null }).in("id", targetIds);
+
+  try {
+    const res = await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-webhook-secret": readSecret("N8N_WEBHOOK_SECRET") ?? "", "idempotency-key": crypto.randomUUID() },
+      // Bulk contract: the body is the array of candidature objects.
+      body: JSON.stringify(payloads),
+    });
+    if (!res.ok) throw new Error(res.status === 404 ? "Le webhook n8n d’analyse n’est pas actif (activez le workflow ET-02 dans n8n)." : `n8n a refusé l’analyse (${res.status}).`);
+
+    const body = await res.json().catch(() => null);
+    let saved = 0;
+    for (const r of inlineCvResults(body, payloads)) {
+      const analysis = parseCvResult(r.result);
+      if (!analysis) continue;
+      try {
+        await saveCvAnalysis(r.applicationId, analysis);
+        saved++;
+      } catch {
+        // The "cv-analysis-result" callback can still deliver this one.
+      }
+    }
+    return { ok: true as const, analyzed: payloads.length, saved, failed };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Erreur inconnue";
+    await supabaseAdmin.from("applications").update({ analysis_status: "error", analysis_error: message }).in("id", targetIds);
+    for (const id of targetIds) await audit("n8n", "cv_analysis_failed", "application", id, { message });
+    return { ok: false as const, error: message, analyzed: 0, saved: 0, failed };
+  }
+}
 
 /** Persists an analysis produced by n8n. Scoring stays in the app. */
 export async function saveCvAnalysis(applicationId: string, result: CvAnalysisView, source = "n8n") {
