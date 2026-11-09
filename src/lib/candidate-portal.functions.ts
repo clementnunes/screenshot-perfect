@@ -120,7 +120,8 @@ export const savePortalAnswer = createServerFn({ method: "POST" })
     const saved = await supabaseAdmin.rpc("save_portal_answer", { p_application: app.id, p_question: data.questionId, p_text: data.text, p_index: data.index });
     if (saved.error) throw saved.error;
     const { sendInterviewForSummary } = await import("./recruitment.server");
-    await sendInterviewForSummary(app.id, "answer_saved");
+    // Fire-and-forget: n8n can take ~30s; never block the candidate's navigation.
+    void sendInterviewForSummary(app.id, "answer_saved").catch((e) => console.error("summary on save failed", e));
     return { savedAt: saved.data };
   });
 
