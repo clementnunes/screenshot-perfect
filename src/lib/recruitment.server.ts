@@ -1,6 +1,7 @@
 // Server-only recruitment workflows (CV analysis, interview analysis, tokens, notifications).
 import { generateResponse } from "@lovable.dev/ai-gateway";
 import { z } from "zod";
+export { cvAnalysisInput } from "./cv-contract";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
   COMMON_QUESTION_COUNT,
@@ -125,56 +126,6 @@ async function askJson<T>(system: string, user: string, name: string, schema: Re
   return parser.parse(JSON.parse(extractText(res)));
 }
 
-const statusEnum = ["documented", "partial", "not_documented", "contradictory", "to_verify"] as const;
-
-const cvSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["candidate_summary", "experience_summary", "skills", "criteria_analysis", "missing_information", "interview_recommendation", "interview_questions", "interview_summary", "confidence"],
-  properties: {
-    candidate_summary: { type: "string" },
-    experience_summary: { type: "string", description: "Ex: '8 ans, dont 4 en management d'entrepôt'" },
-    skills: { type: "array", items: { type: "string" } },
-    criteria_analysis: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["criterion", "status", "evidence", "source"],
-        properties: {
-          criterion: { type: "string" },
-          status: { type: "string", enum: statusEnum },
-          evidence: { type: "string" },
-          source: { type: "string" },
-        },
-      },
-    },
-    missing_information: { type: "array", items: { type: "string" } },
-    interview_recommendation: { type: "string", enum: ["invite_interview", "review", "verify"] },
-    interview_questions: { type: "array", items: { type: "string" } },
-    interview_summary: { type: "null" },
-    confidence: { type: "number" },
-  },
-};
-
-function withCriteriaEnum(names: string[]) {
-  const s = structuredClone(cvSchema) as typeof cvSchema & { properties: { criteria_analysis: { items: { properties: { criterion: Record<string, unknown> } } } } };
-  if (names.length) s.properties.criteria_analysis.items.properties.criterion = { type: "string", enum: names };
-  return s;
-}
-
-const cvParser = z.object({
-  candidate_summary: z.string(),
-  experience_summary: z.string(),
-  skills: z.array(z.string()),
-  criteria_analysis: z.array(z.object({ criterion: z.string(), status: z.enum(statusEnum), evidence: z.string(), source: z.string() })),
-  missing_information: z.array(z.string()),
-  interview_recommendation: z.enum(["invite_interview", "review", "verify"]),
-  interview_questions: z.array(z.string()),
-  interview_summary: z.null(),
-  confidence: z.number().min(0).max(1),
-});
-
 const ETHICS = `Règles impératives :
 - Tu assistes un recruteur ; tu ne prends AUCUNE décision et tu ne recommandes jamais de rejet.
 - N'utilise jamais de caractéristiques protégées (âge, genre, origine, nationalité, religion, handicap, situation familiale, apparence, adresse, photo, nom) ni d'indices indirects de celles-ci.
@@ -204,33 +155,28 @@ export async function runCvAnalysis(applicationId: string) {
 
     const { data: criteria } = await supabaseAdmin.from("job_criteria").select("*").eq("job_id", job.id).order("position");
 
-    const user = `FICHE DE POSTE
-Intitulé : ${job.title}
-Description : ${job.description}
-Missions : ${job.missions}
-Compétences attendues : ${job.skills}
-Expérience souhaitée : ${job.experience}
-Diplômes / certifications : ${job.diplomas}
+    // CV analysis is delegated to n8n; it answers through the "cv-analysis-result" callback.
+    await notify("cv_analysis_requested", applicationId, {
+      job: { id: job.id, title: job.title, description: job.description, missions: job.missions, skills: job.skills, experience: job.experience, diplomas: job.diplomas },
+      criteria: (criteria ?? []).map((c) => ({ name: c.name, weight: c.weight, mandatory: c.mandatory })),
+      cv_pages: pages,
+    }, true);
+    return { ok: true as const };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Erreur inconnue";
+    await supabaseAdmin.from("applications").update({ analysis_status: "error", analysis_error: message }).eq("id", applicationId);
+    await audit("n8n", "cv_analysis_failed", "application", applicationId, { message });
+    return { ok: false as const, error: message };
+  }
+}
 
-CRITÈRES D'ÉVALUATION (analyse chacun, avec exactement ce libellé) :
-${(criteria ?? []).map((c) => `- "${c.name}" — ${c.mandatory ? "obligatoire" : "facultatif"}, pondération ${c.weight} %`).join("\n")}
 
-Les questions de pré-entretien sont générées par n8n. Retourne "interview_questions": [] sans générer de question.
-
-CV DU CANDIDAT
-${cvText}
-
-Produis l'analyse JSON. "confidence" (0 à 1) mesure uniquement la qualité de l'extraction du texte du CV, pas la valeur du candidat. "interview_summary" vaut null.`;
-
-    const result = await askJson<CvAnalysisResult>(
-      `Tu es un assistant d'analyse de CV pour le Groupe Orvane.\n${ETHICS}`,
-      user,
-      "cv_analysis",
-      withCriteriaEnum((criteria ?? []).map((c) => c.name)),
-      cvParser,
-    );
-    result.interview_questions = [];
-
+/** Persists an analysis produced by n8n. Scoring stays in the app. */
+export async function saveCvAnalysis(applicationId: string, result: CvAnalysisResult, source = "n8n") {
+  const { data: app, error } = await supabaseAdmin.from("applications").select("id, job_id, jobs(title)").eq("id", applicationId).single();
+  if (error || !app) throw new Error("Candidature introuvable");
+  const { data: criteria } = await supabaseAdmin.from("job_criteria").select("*").eq("job_id", app.job_id).order("position");
+  try {
     const score = computeMatchScore(criteria ?? [], result.criteria_analysis);
 
     await supabaseAdmin.from("cv_analyses").insert({
@@ -239,7 +185,7 @@ Produis l'analyse JSON. "confidence" (0 à 1) mesure uniquement la qualité de l
       match_score: score,
       recommendation: result.interview_recommendation,
       confidence: result.confidence,
-      model: MODEL,
+      model: source,
     });
 
     await supabaseAdmin
@@ -248,18 +194,18 @@ Produis l'analyse JSON. "confidence" (0 à 1) mesure uniquement la qualité de l
         analysis_status: "done",
         match_score: score,
         recommendation: result.interview_recommendation,
-        status: app.status,
+        analysis_error: null,
       })
       .eq("id", applicationId);
 
-    await audit("ai", "cv_analyzed", "application", applicationId, { score, model: MODEL });
-    await notify("cv_analyzed", applicationId, { job_title: job.title });
+    await audit("n8n", "cv_analyzed", "application", applicationId, { score });
+    await notify("cv_analyzed", applicationId, { job_title: app.jobs?.title });
     return { ok: true as const };
   } catch (e) {
     const message = e instanceof Error ? e.message : "Erreur inconnue";
     await supabaseAdmin.from("applications").update({ analysis_status: "error", analysis_error: message }).eq("id", applicationId);
     await audit("ai", "cv_analysis_failed", "application", applicationId, { message });
-    return { ok: false as const, error: message };
+    throw new Error(message);
   }
 }
 

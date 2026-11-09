@@ -22,3 +22,14 @@ POST vers `/api/public/webhook/<nom>`, avec `x-webhook-secret` et un `idempotenc
 Les réponses vocales sont uniquement des transcriptions texte ; voix, accent et émotions ne sont pas analysés. Les candidats continuent à utiliser leur lien individuel, sans accès direct aux données.
 
 Publier l’application avant de configurer des callbacks de production. Utiliser l’origine publiée réelle, sans identifiant interne dans le lien candidat.
+## Analyse des CV (pilotée par n8n)
+
+L’application n’analyse plus les CV avec son IA. Lorsqu’un CV doit être analysé, elle envoie l’événement `cv_analysis_requested` à `N8N_OUTBOUND_URL` : `application_id`, `job` (intitulé, description, missions, compétences, expérience, diplômes), `criteria` (`name`, `weight`, `mandatory`) et `cv_pages` (texte par page).
+
+n8n renvoie le résultat via `POST /api/public/webhook/cv-analysis-result` :
+
+```json
+{ "application_id": "…", "result": { "candidate_summary": "", "experience_summary": "", "skills": [], "criteria_analysis": [{ "criterion": "libellé exact", "status": "documented|partial|not_documented|contradictory|to_verify", "evidence": "", "source": "CV, page 1" }], "missing_information": [], "interview_recommendation": "invite_interview|review|verify", "confidence": 0.9 } }
+```
+
+Le score de correspondance est calculé par l’application à partir des critères pondérés. Aucun rejet n’est proposé par n8n.

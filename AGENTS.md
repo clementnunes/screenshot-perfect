@@ -33,7 +33,7 @@ use the editor.
 - Exactly three pages: `/` (recruiter dashboard), `/parametrage`, `/candidat/$token`; candidate details are a side sheet, login is inline in `RecruiterShell` — keep it that way, the brief forbids extra pages.
 - Recruiters read/write via the browser client under RLS (`is_recruiter()`); candidates never touch tables directly — all candidate access goes through token-checked server functions in `src/lib/recruitment.functions.ts`.
 - Candidate links: random token, only its SHA-256 hash is stored, with expiry + revocation; never put internal ids in public URLs.
-- AI workflows live in `src/lib/recruitment.server.ts` (shared by server functions and n8n webhooks); AI may never reject — decisions only via `recordDecision` by a signed-in recruiter.
+- CV analysis is delegated to n8n (`cv_analysis_requested` event → `cv-analysis-result` callback); the app only computes the weighted score, keeping one owner for CV inference.
 - CV text is extracted in the browser with pdfjs (the AI model has no PDF input); pages are stored in `applications.cv_pages` so evidence can cite pages.
 - n8n endpoints: `POST /api/public/webhook/<name>` authenticated by `x-webhook-secret` = `N8N_WEBHOOK_SECRET`, deduped by `idempotency-key`; outbound events go to optional `N8N_OUTBOUND_URL`.
 - Scoring/filter rules are pure functions in `src/lib/recruitment.ts` with tests next to them.

@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
+import { cvAnalysisInput } from "@/lib/cv-contract";
 import { interviewAnswerInput, interviewQuestionsInput } from "@/lib/interview-contract";
 
 // n8n integration endpoints: POST /api/public/webhook/<name>
@@ -16,6 +17,7 @@ function safeEqual(a: string, b: string) {
 const schemas = {
   "candidate-received": z.object({ job_id: z.string().uuid(), full_name: z.string().min(2).max(120), email: z.string().email().max(255), phone: z.string().max(40).optional() }),
   "analyze-cv": z.object({ application_id: z.string().uuid() }),
+  "cv-analysis-result": cvAnalysisInput,
   "interview-completed": z.object({ application_id: z.string().uuid() }),
   "interview-prepared": z.object({ application_id: z.string().uuid(), questions: interviewQuestionsInput }),
   "interview-answer": interviewAnswerInput,
@@ -70,6 +72,11 @@ export const Route = createFileRoute("/api/public/webhook/$name")({
           case "analyze-cv": {
             const d = parsed.data as { application_id: string };
             result = await lib.runCvAnalysis(d.application_id);
+            break;
+          }
+          case "cv-analysis-result": {
+            const d = parsed.data as z.infer<typeof cvAnalysisInput>;
+            result = await lib.saveCvAnalysis(d.application_id, d.result);
             break;
           }
           case "interview-completed": {
