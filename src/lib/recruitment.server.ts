@@ -1,7 +1,10 @@
 // Server-only recruitment workflows (CV analysis, interview analysis, tokens, notifications).
 import { generateResponse } from "@lovable.dev/ai-gateway";
 import { z } from "zod";
-export { cvAnalysisInput } from "./cv-contract";
+import { cvAnalysisInput } from "./cv-contract";
+export { cvAnalysisInput };
+
+export const CV_ANALYSIS_WEBHOOK_URL = "https://nmudhoo.n8n-wsk.com/webhook-test/a4da0844-bdf2-498c-ab39-181adaa00474";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
   COMMON_QUESTION_COUNT,
@@ -156,11 +159,22 @@ export async function runCvAnalysis(applicationId: string) {
     const { data: criteria } = await supabaseAdmin.from("job_criteria").select("*").eq("job_id", job.id).order("position");
 
     // CV analysis is delegated to n8n; it answers through the "cv-analysis-result" callback.
-    await notify("cv_analysis_requested", applicationId, {
-      job: { id: job.id, title: job.title, description: job.description, missions: job.missions, skills: job.skills, experience: job.experience, diplomas: job.diplomas },
-      criteria: (criteria ?? []).map((c) => ({ name: c.name, weight: c.weight, mandatory: c.mandatory })),
-      cv_pages: pages,
-    }, true);
+    const res = await fetch(CV_ANALYSIS_WEBHOOK_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-webhook-secret": process.env["N8N_WEBHOOK_SECRET"] ?? "", "idempotency-key": crypto.randomUUID() },
+      body: JSON.stringify({
+        type: "cv_analysis_requested",
+        application_id: applicationId,
+        job: { id: job.id, title: job.title, description: job.description, missions: job.missions, skills: job.skills, experience: job.experience, diplomas: job.diplomas },
+        criteria: (criteria ?? []).map((c) => ({ name: c.name, weight: c.weight, mandatory: c.mandatory })),
+        cv_pages: pages,
+      }),
+    });
+    if (!res.ok) throw new Error(res.status === 404 ? "Le webhook n8n d’analyse n’écoute pas (lancez « Execute workflow » en mode test)." : `n8n a refusé l’analyse (${res.status}).`);
+    // n8n may answer directly with the analysis, or later through the "cv-analysis-result" callback.
+    const body = await res.json().catch(() => null);
+    const direct = cvAnalysisInput.shape.result.safeParse((body as { result?: unknown } | null)?.result ?? body);
+    if (direct.success) return saveCvAnalysis(applicationId, direct.data);
     return { ok: true as const };
   } catch (e) {
     const message = e instanceof Error ? e.message : "Erreur inconnue";

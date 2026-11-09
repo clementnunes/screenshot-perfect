@@ -24,9 +24,9 @@ Les réponses vocales sont uniquement des transcriptions texte ; voix, accent et
 Publier l’application avant de configurer des callbacks de production. Utiliser l’origine publiée réelle, sans identifiant interne dans le lien candidat.
 ## Analyse des CV (pilotée par n8n)
 
-L’application n’analyse plus les CV avec son IA. Lorsqu’un CV doit être analysé, elle envoie l’événement `cv_analysis_requested` à `N8N_OUTBOUND_URL` : `application_id`, `job` (intitulé, description, missions, compétences, expérience, diplômes), `criteria` (`name`, `weight`, `mandatory`) et `cv_pages` (texte par page).
+L’application n’analyse plus les CV avec son IA. Lorsqu’un CV doit être analysé, elle envoie en POST JSON l’événement `cv_analysis_requested` au webhook `https://nmudhoo.n8n-wsk.com/webhook-test/a4da0844-bdf2-498c-ab39-181adaa00474` (mode test : lancer « Execute workflow » avant chaque essai) : `application_id`, `job` (intitulé, description, missions, compétences, expérience, diplômes), `criteria` (`name`, `weight`, `mandatory`) et `cv_pages` (texte par page).
 
-n8n renvoie le résultat via `POST /api/public/webhook/cv-analysis-result` :
+n8n peut répondre directement avec le résultat (« Respond to Webhook », objet `result` ou résultat seul), ou plus tard via `POST /api/public/webhook/cv-analysis-result` :
 
 ```json
 { "application_id": "…", "result": { "candidate_summary": "", "experience_summary": "", "skills": [], "criteria_analysis": [{ "criterion": "libellé exact", "status": "documented|partial|not_documented|contradictory|to_verify", "evidence": "", "source": "CV, page 1" }], "missing_information": [], "interview_recommendation": "invite_interview|review|verify", "confidence": 0.9 } }
