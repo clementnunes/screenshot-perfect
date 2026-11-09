@@ -112,7 +112,7 @@ Installation et lancement
 
 # Cloner le dépôt
 git clone <url-du-depot>
-cd orvane-recrutement
+cd screenshot-perfect
 
 # Installer les dépendances
 bun install # ou npm install
