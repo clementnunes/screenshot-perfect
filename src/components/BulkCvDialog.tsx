@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
-import { Upload, Trash2 } from "lucide-react";
+import { Loader2, Upload, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,7 @@ export function BulkCvDialog({ jobId, publicMode = false }: { jobId?: string; pu
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState<Row[]>([]);
   const [busy, setBusy] = useState(false);
+  const [phase, setPhase] = useState<"idle" | "reading" | "sending">("idle");
   const add = useServerFn(addApplication);
   const analyze = useServerFn(analyzeNewCvs);
   const submitPublic = useServerFn(submitCandidateCvs);
@@ -25,7 +26,7 @@ export function BulkCvDialog({ jobId, publicMode = false }: { jobId?: string; pu
   const update = (id: string, patch: Partial<Row>) => setRows((rs) => rs.map((r) => r.id === id ? { ...r, ...patch } : r));
   async function select(files: FileList | null) {
     if (!files) return;
-    setBusy(true);
+    setBusy(true); setPhase("reading");
     const entries: Row[] = [];
     for (const file of Array.from(files)) {
       try {
@@ -35,10 +36,10 @@ export function BulkCvDialog({ jobId, publicMode = false }: { jobId?: string; pu
       } catch (e) { toast.error(`${file.name} : ${e instanceof Error ? e.message : "Lecture impossible"}`); }
     }
     setRows((rs) => [...rs, ...entries]);
-    setBusy(false);
+    setBusy(false); setPhase("idle");
   }
   async function submit(e: React.FormEvent) {
-    e.preventDefault(); setBusy(true);
+    e.preventDefault(); setBusy(true); setPhase("sending");
     try {
       const pending = rows.filter((r) => !r.result);
       if (publicMode) {
@@ -73,7 +74,7 @@ export function BulkCvDialog({ jobId, publicMode = false }: { jobId?: string; pu
         } catch (e) { toast.error(e instanceof Error ? e.message : "Analyse impossible"); }
       }
       await qc.invalidateQueries({ queryKey: ["applications"] });
-    } finally { setBusy(false); }
+    } finally { setBusy(false); setPhase("idle"); }
   }
   return <Dialog open={open} onOpenChange={(v) => { if (!busy) setOpen(v); }}>
     <DialogTrigger asChild><Button variant={publicMode ? "default" : "outline"} size={publicMode ? "lg" : "default"}><Upload /> {publicMode ? "Importer un CV" : "Importer des CV"}</Button></DialogTrigger>
@@ -88,7 +89,8 @@ export function BulkCvDialog({ jobId, publicMode = false }: { jobId?: string; pu
           {r.result && !publicMode && <CandidateLinkBox {...r.result} />}
         </div>)}
         {publicMode && !done && <div className="space-y-2"><p className="text-sm text-muted-foreground">Choisissez un mot de passe : il vous servira à accéder à votre pré-entretien.</p><div className="grid gap-2 sm:grid-cols-2"><Input aria-label="Mot de passe" placeholder="Mot de passe (8 caractères min.)" type="password" autoComplete="new-password" required minLength={8} maxLength={128} value={password} disabled={busy} onChange={(e) => setPassword(e.target.value)} /><Input aria-label="Confirmation du mot de passe" placeholder="Confirmez le mot de passe" type="password" autoComplete="new-password" required minLength={8} maxLength={128} value={confirm} disabled={busy} onChange={(e) => setConfirm(e.target.value)} /></div>{confirm && password !== confirm && <p className="text-xs text-destructive">Les mots de passe ne correspondent pas.</p>}</div>}
-        <Button type="submit" disabled={busy || done || !rows.some((r) => !r.result)}>{busy ? "Envoi et analyse en cours…" : publicMode ? (done ? "CV envoyé" : "Envoyer mon CV") : `Importer ${rows.filter((r) => !r.result).length} CV`}</Button>
+        {publicMode && busy && <div role="status" aria-live="polite" className="flex items-start gap-3 rounded-md bg-primary-soft p-3 text-sm text-primary"><Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin" /><span>{phase === "reading" ? "Lecture de votre CV en cours…" : "Envoi de votre CV en cours, cela peut prendre une minute. Ne fermez pas cette fenêtre."}</span></div>}
+        <Button type="submit" disabled={busy || done || !rows.some((r) => !r.result)}>{busy && <Loader2 className="animate-spin" />}{busy ? (publicMode && phase === "reading" ? "Lecture en cours…" : "Envoi et analyse en cours…") : publicMode ? (done ? "CV envoyé" : "Envoyer mon CV") : `Importer ${rows.filter((r) => !r.result).length} CV`}</Button>
       </form>
     </DialogContent>
   </Dialog>;

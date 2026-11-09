@@ -254,7 +254,7 @@ export function CandidateSheet({ applicationId, onClose }: { applicationId: stri
                   const r = await sendSummary({ data: { applicationId: data.app.id } });
                   if (r.ok) toast.success("Questions-réponses envoyées à n8n."); else toast.error(`Échec de l'envoi à n8n (code ${r.status}).`);
                 } catch (e) { toast.error(e instanceof Error ? e.message : "Échec de l'envoi."); }
-              }}>Test générer synthèse</Button>
+              }}>Générer la synthèse</Button>
             </Section>
 
             {data.decisions.length > 0 && (
