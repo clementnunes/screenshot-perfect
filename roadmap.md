@@ -10,6 +10,8 @@
 - [x] Réutiliser toutes les questions existantes, sauvegarder les réponses et ajouter la vérification avant soumission.
 - [x] Ajouter le suivi des dates recruteur et les points d’intégration n8n de soumission/synthèse.
 - [x] Vérifier les règles de sécurité par 22 tests et l’affichage mobile sans débordement.
-- [ ] Vérifier le parcours candidat complet : invitation n8n non connectée (blocage du préambule React résolu).
+- [ ] Vérifier la synthèse après soumission : workflow n8n non connecté ; accès candidat sans invitation désormais vérifié.
 - [x] Rétablir et vérifier l’affichage connecté de l’accueil et du paramétrage après le blocage du chargement partagé.
 - [x] Exposer les huit sections de la fiche de poste à n8n via un endpoint public protégé par le mot de passe partagé.
+- [x] Remplacer l’envoi d’e-mail d’accès par le lien candidat existant et la confirmation de son e-mail.
+- [x] Vérifier l’accès sans invitation, le refus d’un autre e-mail, la sauvegarde relue après rechargement et la fermeture d’accès ; règles de soumission testées.

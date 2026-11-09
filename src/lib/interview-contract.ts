@@ -23,6 +23,10 @@ export function isActiveInvitation(app: { token_revoked: boolean; token_expires_
   return !!interview?.invited_at && !app.token_revoked && !!app.token_expires_at && Date.parse(app.token_expires_at) > now;
 }
 
+export function canAccessByLink(app: { token_revoked: boolean; token_expires_at: string | null }, candidateEmail: string, enteredEmail: string, now = Date.now()) {
+  return !app.token_revoked && !!app.token_expires_at && Date.parse(app.token_expires_at) > now && candidateEmail.trim().toLowerCase() === enteredEmail.trim().toLowerCase();
+}
+
 export const interviewAnswerInput = z.object({
   application_id: z.string().uuid(), question_id: z.string().uuid(),
   answer_text: z.string().max(5000), input_mode: z.enum(["text", "voice"]),

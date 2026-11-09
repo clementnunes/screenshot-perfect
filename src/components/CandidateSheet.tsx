@@ -216,7 +216,7 @@ export function CandidateSheet({ applicationId, onClose }: { applicationId: stri
               <div className="mb-4 flex flex-wrap items-center gap-3">
                 <InterviewPill status={data.interview?.status} />
                 <span className="text-xs text-muted-foreground">{answers.filter((a) => a.answer_text.trim()).length} / {data.interview ? data.questions.length : (analysis?.interview_questions.length ?? 0) + data.questions.filter((q) => q.kind === "common").length} réponses</span>
-                <Button size="sm" variant="outline" disabled={busy || !data.app.cv_path || data.app.status === "decided" || data.interview?.status === "completed"} onClick={() => run(() => invite({ data: { applicationId: data.app.id, origin: window.location.origin } }), "Demande d’invitation transmise à n8n")}>{data.interview?.invited_at ? "Renvoyer l’invitation" : "Envoyer une invitation"}</Button>
+                <Button size="sm" variant="outline" disabled={busy || !data.app.cv_path || data.app.status === "decided" || data.interview?.status === "completed"} onClick={() => run(() => invite({ data: { applicationId: data.app.id, origin: window.location.origin } }), "Pré-entretien prêt : le candidat peut utiliser son lien existant")}>Préparer le pré-entretien</Button>
                 <Button size="sm" variant="ghost" onClick={() => window.open(`${window.location.origin}/espace-candidat`, "_blank", "noopener,noreferrer")}><Link2 />Portail candidat</Button>
               </div>
               <dl className="mb-5 grid grid-cols-2 gap-3 text-xs"><div><dt className="text-muted-foreground">Invitation</dt><dd>{data.app.token_revoked ? "Révoquée" : data.app.token_expires_at && new Date(data.app.token_expires_at).getTime() < Date.now() ? "Expirée" : data.interview?.invited_at ? "Envoyée" : "En attente"}</dd></div>{[["Envoyée le", data.interview?.invited_at], ["Commencé le", data.interview?.started_at], ["Soumis le", data.interview?.completed_at]].map(([label, date]) => <div key={label}><dt className="text-muted-foreground">{label}</dt><dd>{date ? new Date(date).toLocaleString("fr-FR") : "—"}</dd></div>)}</dl>
@@ -232,7 +232,7 @@ export function CandidateSheet({ applicationId, onClose }: { applicationId: stri
                     );
                   })}
                 </ol>
-              ) : <p className="text-sm text-muted-foreground">En attente des questions et de l’invitation n8n.</p>}
+              ) : <p className="text-sm text-muted-foreground">Les questions seront reprises lors de l’accès par le lien candidat.</p>}
             </Section>
 
             <Section n={8} title="Synthèse du pré-entretien">

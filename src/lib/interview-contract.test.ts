@@ -1,7 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { assembleInterviewQuestions, canSubmitInterview, interviewQuestionsInput, isActiveInvitation } from "./interview-contract";
+import { assembleInterviewQuestions, canAccessByLink, canSubmitInterview, interviewQuestionsInput, isActiveInvitation } from "./interview-contract";
 
 describe("questions pilotées par n8n", () => {
+  const active = { token_revoked: false, token_expires_at: "2026-11-10T12:00:00Z" };
+  const now = Date.parse("2026-11-09T13:00:00Z");
+  it("ouvre le pré-entretien par lien actif et e-mail sans invitation envoyée", () => {
+    expect(canAccessByLink(active, "candidat@example.com", " CANDIDAT@example.com ", now)).toBe(true);
+  });
+  it("refuse un e-mail différent", () => {
+    expect(canAccessByLink(active, "candidat@example.com", "autre@example.com", now)).toBe(false);
+  });
+  it("refuse un lien révoqué", () => {
+    expect(canAccessByLink({ ...active, token_revoked: true }, "candidat@example.com", "candidat@example.com", now)).toBe(false);
+  });
+  it("refuse un lien expiré ou sans échéance", () => {
+    expect(canAccessByLink(active, "candidat@example.com", "candidat@example.com", Date.parse("2026-11-11T12:00:00Z"))).toBe(false);
+    expect(canAccessByLink({ ...active, token_expires_at: null }, "candidat@example.com", "candidat@example.com", now)).toBe(false);
+  });
   it("accepte quatre questions communes et deux personnalisées", () => {
     expect(interviewQuestionsInput.safeParse([...Array.from({ length: 4 }, () => ({ question: "Expérience professionnelle ?", kind: "common" })), ...Array.from({ length: 2 }, () => ({ question: "Projet du CV ?", kind: "personalized" }))]).success).toBe(true);
   });

@@ -4,11 +4,11 @@ Le workflow réel n’a pas été connecté. Configurer `N8N_OUTBOUND_URL` avec 
 
 ## Portail candidat
 
-Les pages `/espace-candidat`, `/espace-candidat/accueil`, `/espace-candidat/questionnaire`, `/espace-candidat/verification` et `/espace-candidat/confirmation` utilisent Cloud Auth sans mot de passe. Une invitation active, datée par le callback `interview-invited`, est obligatoire. Les comptes invités sont provisionnés sans rôle recruteur. Les anciens liens `/candidat/<token>` restent dédiés au dépôt du CV, pas à l’accès aux réponses.
+Les pages `/espace-candidat`, `/espace-candidat/accueil`, `/espace-candidat/questionnaire`, `/espace-candidat/verification` et `/espace-candidat/confirmation` utilisent le lien candidat existant, valide et non révoqué. Depuis `/candidat/<token>`, le candidat rejoint `/espace-candidat?token=<token>` et saisit son e-mail correspondant. Aucun e-mail ni compte Cloud Auth n’est nécessaire. Un cookie HttpOnly conserve le lien ; chaque lecture, sauvegarde et soumission contrôle de nouveau son hash, son expiration et sa révocation. Les questions enregistrées sont préparées lors de cet accès sans n8n.
 
 ## Événements reçus par n8n
 
-- `interview_requested` (WF-06) : `application_id`, `candidate` (nom/email), `job`, `questions` (snapshots avec identifiants, texte et catégorie), `candidate_url` (page d’accès par e-mail), `expires_at`. L’application assemble toutes les questions communes enregistrées et celles de la dernière analyse CV. Ne générer, réécrire ou remplacer aucune question. Envoyer l’invitation puis appeler `interview-invited`.
+- `interview_requested` (WF-06) : ancien événement, non envoyé par le bouton « Préparer le pré-entretien ». Ce bouton assemble localement toutes les questions communes enregistrées et celles de la dernière analyse CV. Ne générer, réécrire ou remplacer aucune question. Aucune invitation n’est nécessaire.
 - `interview_submit` (WF-07) : `application_id`, `interview_id`, `submitted_at`. Les réponses sont déjà enregistrées et définitivement verrouillées. Lire leur contenu par `interview-submission`, puis déclencher WF-08.
 - `interview_summary_requested` : relance demandée par le recruteur ou ancien callback de fin. Utiliser la même lecture sécurisée.
 
@@ -19,12 +19,12 @@ Les réponses sont maintenant sauvegardées directement et atomiquement par l’
 POST `/api/public/webhook/<nom>`, avec `x-webhook-secret: N8N_WEBHOOK_SECRET` et `idempotency-key` unique :
 
 - `interview-prepared` : ancien callback compatible ; il réutilise exclusivement les questions enregistrées, sans prendre les nouveaux textes du payload.
-- `interview-invited` : `{ application_id }`, après envoi effectif. Date l’invitation et rend le portail accessible.
+- `interview-invited` : ancien callback compatible, date un éventuel envoi mais ne conditionne plus l’accès au portail.
 - `interview-submission` : `{ application_id }`. Retourne uniquement la session soumise, ses questions et réponses. Refuse les sessions non soumises.
 - `interview-summary` : `{ application_id, summary: { summary, strengths: [], points_to_verify: [], per_question: [{ question, assessment }] } }`. Enregistre la synthèse sur une session soumise, visible uniquement au recruteur.
 - `interview-completed` : compatibilité ancienne ; contrôle toutes les réponses existantes, verrouille et transmet la demande de synthèse à n8n, sans IA locale.
 
-Publier avant les callbacks de production. Le lien magique Cloud Auth est à usage unique ; la session résultante permet de revenir jusqu’à expiration/révocation de l’invitation. Les durées de connexion dépendent des réglages Cloud Auth. Aucune information de score ou d’évaluation interne n’est renvoyée au candidat.
+Publier avant les callbacks de production. Le lien candidat et son cookie permettent de revenir jusqu’à expiration/révocation du lien. Quitter l’espace supprime ce cookie sans affecter la session recruteur. Aucune information de score ou d’évaluation interne n’est renvoyée au candidat.
 
 ## Analyse des CV (pilotée par n8n)
 

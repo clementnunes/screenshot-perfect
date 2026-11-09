@@ -2,7 +2,7 @@
 import { generateResponse } from "@lovable.dev/ai-gateway";
 import { z } from "zod";
 import { readSecret } from "./runtime-env";
-import { prepareExistingQuestions, provisionInvitedAccount } from "./candidate-portal.server";
+import { prepareExistingQuestions } from "./candidate-portal.server";
 import { parseCvResult } from "./cv-contract";
 export { parseCvResult };
 
@@ -90,7 +90,6 @@ export async function notify(type: string, applicationId: string | null, payload
 }
 
 export async function requestN8nInterview(applicationId: string, origin: string) {
-  if (!readSecret("N8N_OUTBOUND_URL")) throw new Error("Le workflow n8n n’est pas encore connecté.");
   const { data: app, error } = await supabaseAdmin.from("applications").select("*, candidates(full_name, email), jobs(*)").eq("id", applicationId).single();
   if (error || !app) throw new Error("Candidature introuvable.");
   const { data: iv } = await supabaseAdmin.from("interviews").select("status,invited_at").eq("application_id", applicationId).maybeSingle();
@@ -98,13 +97,7 @@ export async function requestN8nInterview(applicationId: string, origin: string)
   if (app.status === "decided") throw new Error("Une décision a déjà été prise.");
   if (!app.cv_path) throw new Error("Un CV est nécessaire.");
   await prepareExistingQuestions(applicationId, app.job_id);
-  await provisionInvitedAccount(app.candidates.email);
-  const link = await issueCandidateLink(applicationId, app.jobs.link_validity_days);
-  const questions = await getInterviewQuestions(app.job_id, applicationId);
-  await notify("interview_requested", applicationId, {
-    candidate: app.candidates, job: app.jobs,
-    questions, candidate_url: `${new URL(origin).origin}/espace-candidat`, expires_at: link.expiresAt,
-  }, true);
+  await audit("recruiter", "interview_prepared", "application", applicationId);
   return { ok: true };
 }
 

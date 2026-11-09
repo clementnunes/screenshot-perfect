@@ -165,5 +165,5 @@ type SpeechRec = { lang: string; continuous: boolean; interimResults: boolean; s
 
 function StepB({ token, s }: { token: string; s: Session }) {
   const navigate = useNavigate();
-  return <div className="space-y-5"><h1 className="text-2xl font-semibold">Votre pré-entretien</h1><p className="text-muted-foreground">Accédez à votre questionnaire avec le lien sécurisé reçu par e-mail.</p><Button onClick={() => navigate({ to: "/espace-candidat" })}>Accéder à mon espace candidat</Button></div>;
+  return <div className="space-y-5"><h1 className="text-2xl font-semibold">Votre pré-entretien</h1><p className="text-muted-foreground">Confirmez votre adresse e-mail pour accéder à votre questionnaire.</p><Button onClick={() => navigate({ to: "/espace-candidat", search: { token } })}>Accéder à mon espace candidat</Button></div>;
 }

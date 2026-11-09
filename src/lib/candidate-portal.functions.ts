@@ -1,36 +1,44 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-
-const notice = "Si une invitation correspond à cette adresse, vous recevrez un e-mail contenant votre lien d'accès.";
+const accessInput = z.object({ token: z.string().min(20).max(200), email: z.string().trim().email().max(255) });
 
 export const requestCandidateAccess = createServerFn({ method: "POST" })
-  .inputValidator((d) => z.object({ email: z.string().trim().email().max(255), origin: z.string().url() }).parse(d))
+  .inputValidator((d) => accessInput.parse(d))
   .handler(async ({ data }) => {
-    const { getRequest } = await import("@tanstack/react-start/server");
-    const actualOrigin = getRequest().headers.get("origin");
-    if (!actualOrigin || new URL(data.origin).origin !== actualOrigin) throw new Error("Origine de connexion invalide.");
-    const { candidateApplication } = await import("./candidate-portal.server");
-    const app = await candidateApplication(data.email);
-    if (app) {
-      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      const { error } = await supabaseAdmin.auth.signInWithOtp({ email: app.candidates.email, options: { shouldCreateUser: false, emailRedirectTo: `${new URL(data.origin).origin}/espace-candidat` } });
-      if (error) console.error("Candidate access email refused", error.status, error.code);
-    }
-    return { message: notice };
+    const { findApplicationByToken } = await import("./recruitment.server");
+    const { canAccessByLink } = await import("./interview-contract");
+    const app = await findApplicationByToken(data.token);
+    if (!app || !canAccessByLink(app, app.candidates.email, data.email)) throw new Error("Ce lien ou cette adresse e-mail ne correspond pas à une candidature active.");
+    if (!app.cv_path) throw new Error("Veuillez d’abord déposer votre CV avec votre lien candidat.");
+    const { prepareExistingQuestions } = await import("./candidate-portal.server");
+    await prepareExistingQuestions(app.id, app.job_id);
+    const { setCookie, getRequest } = await import("@tanstack/react-start/server");
+    const secure = new URL(getRequest().url).protocol === "https:";
+    setCookie("orvane-candidate", data.token, { httpOnly: true, secure, sameSite: secure ? "none" : "lax", path: "/", expires: new Date(app.token_expires_at ?? Date.now()) });
+    return { ok: true };
   });
 
-async function requireCandidate(userId: string, client: { auth: { getUser: () => Promise<{ data: { user: { id: string; email?: string } | null } }> } }) {
-  const { data: { user } } = await client.auth.getUser();
-  if (!user?.email || user.id !== userId) throw new Error("Connectez-vous avec le lien reçu par e-mail.");
-  const { candidateApplication } = await import("./candidate-portal.server");
-  const app = await candidateApplication(user.email);
-  if (!app) throw new Error("Votre invitation est invalide, expirée ou révoquée.");
-  return app;
+export const leaveCandidatePortal = createServerFn({ method: "POST" }).handler(async () => {
+  const { deleteCookie } = await import("@tanstack/react-start/server");
+  deleteCookie("orvane-candidate", { path: "/" });
+  return { ok: true };
+});
+
+async function requireCandidate() {
+  const { getCookie } = await import("@tanstack/react-start/server");
+  const { findApplicationByToken } = await import("./recruitment.server");
+  const { canAccessByLink } = await import("./interview-contract");
+  const token = getCookie("orvane-candidate");
+  const app = token ? await findApplicationByToken(token) : null;
+  if (!app || !canAccessByLink(app, app.candidates.email, app.candidates.email)) throw new Error("Votre lien candidat est invalide, expiré ou révoqué.");
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data: interview, error } = await supabaseAdmin.from("interviews").select("*").eq("application_id", app.id).maybeSingle();
+  if (error) throw error;
+  return { ...app, interviews: interview };
 }
 
-export const getPortalSession = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
-  const app = await requireCandidate(context.userId, context.supabase);
+export const getPortalSession = createServerFn({ method: "POST" }).handler(async () => {
+  const app = await requireCandidate();
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const iv = app.interviews;
   if (!iv) throw new Error("Pré-entretien indisponible.");
@@ -39,11 +47,11 @@ export const getPortalSession = createServerFn({ method: "POST" }).middleware([r
     supabaseAdmin.from("interview_answers").select("question_id,answer_text,updated_at").eq("interview_id", iv.id),
   ]);
   if (error) throw error;
-  return { job: app.jobs, firstName: app.candidates.full_name.split(" ")[0], expiresAt: app.token_expires_at, consent: !!app.consent_at, status: iv.status, currentIndex: iv.current_index, startedAt: iv.started_at, submittedAt: iv.completed_at, questions: questions ?? [], answers: answers ?? [] };
+  return { job: { title: app.jobs.title, location: app.jobs.location, contract_type: app.jobs.contract_type, confirmation_message: app.jobs.confirmation_message }, firstName: app.candidates.full_name.split(" ")[0], expiresAt: app.token_expires_at, consent: !!app.consent_at, status: iv.status, currentIndex: iv.current_index, startedAt: iv.started_at, submittedAt: iv.completed_at, questions: questions ?? [], answers: answers ?? [] };
 });
 
-export const startPortalInterview = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).inputValidator((d) => z.object({ consent: z.literal(true) }).parse(d)).handler(async ({ context }) => {
-  const app = await requireCandidate(context.userId, context.supabase);
+export const startPortalInterview = createServerFn({ method: "POST" }).inputValidator((d) => z.object({ consent: z.literal(true) }).parse(d)).handler(async () => {
+  const app = await requireCandidate();
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const now = new Date().toISOString();
   const identity = await supabaseAdmin.from("applications").update({ identity_confirmed_at: now, consent_at: now }).eq("id", app.id);
@@ -53,10 +61,10 @@ export const startPortalInterview = createServerFn({ method: "POST" }).middlewar
   return { ok: true };
 });
 
-export const savePortalAnswer = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+export const savePortalAnswer = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ questionId: z.string().uuid(), text: z.string().max(5000), index: z.number().int().min(0) }).parse(d))
-  .handler(async ({ data, context }) => {
-    const app = await requireCandidate(context.userId, context.supabase);
+  .handler(async ({ data }) => {
+    const app = await requireCandidate();
     if (!app.consent_at) throw new Error("Veuillez accepter le traitement de vos réponses.");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const saved = await supabaseAdmin.rpc("save_portal_answer", { p_application: app.id, p_question: data.questionId, p_text: data.text, p_index: data.index });
@@ -64,10 +72,10 @@ export const savePortalAnswer = createServerFn({ method: "POST" }).middleware([r
     return { savedAt: saved.data };
   });
 
-export const submitPortalInterview = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+export const submitPortalInterview = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ confirmed: z.literal(true) }).parse(d))
-  .handler(async ({ context }) => {
-    const app = await requireCandidate(context.userId, context.supabase);
+  .handler(async () => {
+    const app = await requireCandidate();
     if (!app.consent_at) throw new Error("Veuillez accepter le traitement de vos réponses.");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const submitted = await supabaseAdmin.rpc("submit_portal_interview", { p_application: app.id });

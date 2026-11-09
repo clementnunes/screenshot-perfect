@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ArrowLeft, ArrowRight, CheckCircle2, ClipboardCheck, LockKeyhole, LogOut, Mail } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+
 import { OrvaneLogo } from "./RecruiterShell";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -13,36 +13,35 @@ import { Textarea } from "./ui/textarea";
 import { Checkbox } from "./ui/checkbox";
 import { Progress } from "./ui/progress";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel } from "./ui/alert-dialog";
-import { getPortalSession, requestCandidateAccess, savePortalAnswer, startPortalInterview, submitPortalInterview } from "@/lib/candidate-portal.functions";
+import { getPortalSession, leaveCandidatePortal, requestCandidateAccess, savePortalAnswer, startPortalInterview, submitPortalInterview } from "@/lib/candidate-portal.functions";
 import { canSubmitInterview } from "@/lib/interview-contract";
 
 function PortalShell({ children, signedIn = false }: { children: ReactNode; signedIn?: boolean }) {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  return <div className="min-h-screen bg-background"><header className="border-b bg-card"><div className="mx-auto flex min-h-20 max-w-4xl items-center justify-between gap-4 px-5"><OrvaneLogo />{signedIn ? <Button variant="ghost" size="sm" onClick={async () => { await qc.cancelQueries(); qc.clear(); await supabase.auth.signOut(); await navigate({ to: "/espace-candidat", replace: true }); }}><LogOut className="h-4 w-4" /><span className="hidden sm:inline">Quitter mon espace</span></Button> : <LockKeyhole className="h-5 w-5 text-primary" />}</div></header><main className="mx-auto max-w-3xl px-5 py-10 sm:py-14">{children}</main><footer className="mx-auto max-w-3xl border-t px-5 py-6 text-xs text-muted-foreground">Groupe Orvane · Espace candidat sécurisé</footer></div>;
+  const leave = useServerFn(leaveCandidatePortal);
+  return <div className="min-h-screen bg-background"><header className="border-b bg-card"><div className="mx-auto flex min-h-20 max-w-4xl items-center justify-between gap-4 px-5"><OrvaneLogo />{signedIn ? <Button variant="ghost" size="sm" onClick={async () => { await qc.cancelQueries(); qc.clear(); await leave(); await navigate({ to: "/espace-candidat", replace: true }); }}><LogOut className="h-4 w-4" /><span className="hidden sm:inline">Quitter mon espace</span></Button> : <LockKeyhole className="h-5 w-5 text-primary" />}</div></header><main className="mx-auto max-w-3xl px-5 py-10 sm:py-14">{children}</main><footer className="mx-auto max-w-3xl border-t px-5 py-6 text-xs text-muted-foreground">Groupe Orvane · Espace candidat sécurisé</footer></div>;
 }
 
-export function CandidateAccess() {
+export function CandidateAccess({ token }: { token?: string | undefined }) {
   const request = useServerFn(requestCandidateAccess);
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
-  const [sent, setSent] = useState(false);
+
   const [busy, setBusy] = useState(false);
   const [privacy, setPrivacy] = useState(false);
-  useEffect(() => { supabase.auth.getUser().then(({ data }) => { if (data.user) void navigate({ to: "/espace-candidat/accueil" }); }); }, [navigate]);
-  return <PortalShell><div className="mb-8 flex h-12 w-12 items-center justify-center rounded-md bg-primary-soft text-primary"><Mail /></div><h1 className="text-3xl font-semibold leading-tight">Bienvenue sur votre espace candidat</h1><p className="mt-4 max-w-xl text-muted-foreground">Accédez à votre pré-entretien et échangez avec notre équipe de recrutement.</p>{sent ? <div role="status" className="mt-8 flex gap-3 border-l-2 border-primary bg-primary-soft p-5"><CheckCircle2 className="h-5 w-5 shrink-0 text-primary" /><p className="text-sm">Si une invitation correspond à cette adresse, vous recevrez un e-mail contenant votre lien d'accès.</p></div> : <form className="mt-9 max-w-md space-y-5" onSubmit={async (e) => { e.preventDefault(); setBusy(true); try { await request({ data: { email, origin: window.location.origin } }); setSent(true); } catch { toast.error("L’envoi est indisponible. Réessayez dans un instant."); } finally { setBusy(false); } }}><div className="space-y-2"><Label htmlFor="candidate-email">Adresse e-mail</Label><Input id="candidate-email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="h-12" /></div><Button type="submit" disabled={busy} className="h-12 w-full">{busy ? "Envoi…" : "Continuer"}<ArrowRight /></Button><p className="text-sm leading-relaxed text-muted-foreground">Un lien sécurisé à usage unique vous sera envoyé par e-mail si vous avez reçu une invitation.</p></form>}<Button variant="link" className="mt-7 px-0" onClick={() => setPrivacy(true)}>Politique de confidentialité</Button><AlertDialog open={privacy} onOpenChange={setPrivacy}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Données personnelles</AlertDialogTitle><AlertDialogDescription>Le Groupe Orvane traite votre CV et vos réponses uniquement pour ce recrutement. L’IA assiste les recruteurs sans prendre de décision. Votre voix, votre accent et vos émotions ne sont pas analysés. Pour exercer vos droits d’accès, de rectification ou d’effacement, contactez l’équipe recrutement.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Fermer</AlertDialogCancel></AlertDialogFooter></AlertDialogContent></AlertDialog></PortalShell>;
+
+  return <PortalShell><div className="mb-8 flex h-12 w-12 items-center justify-center rounded-md bg-primary-soft text-primary"><Mail /></div><h1 className="text-3xl font-semibold leading-tight">Bienvenue sur votre espace candidat</h1><p className="mt-4 max-w-xl text-muted-foreground">Accédez à votre pré-entretien et échangez avec notre équipe de recrutement.</p><form className="mt-9 max-w-md space-y-5" onSubmit={async (e) => { e.preventDefault(); setBusy(true); try { if (!token) throw new Error("Ouvrez votre lien candidat individuel pour accéder au pré-entretien."); await request({ data: { email, token } }); await navigate({ to: "/espace-candidat/accueil" }); } catch (e) { toast.error(e instanceof Error ? e.message : "Accès indisponible."); } finally { setBusy(false); } }}><div className="space-y-2"><Label htmlFor="candidate-email">Adresse e-mail</Label><Input id="candidate-email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="h-12" /></div><Button type="submit" disabled={busy || !token} className="h-12 w-full">{busy ? "Vérification…" : "Continuer"}<ArrowRight /></Button><p className="text-sm leading-relaxed text-muted-foreground">{!token && "Ouvrez le lien individuel transmis par l’équipe recrutement."}</p></form><Button variant="link" className="mt-7 px-0" onClick={() => setPrivacy(true)}>Politique de confidentialité</Button><AlertDialog open={privacy} onOpenChange={setPrivacy}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Données personnelles</AlertDialogTitle><AlertDialogDescription>Le Groupe Orvane traite votre CV et vos réponses uniquement pour ce recrutement. L’IA assiste les recruteurs sans prendre de décision. Votre voix, votre accent et vos émotions ne sont pas analysés. Pour exercer vos droits d’accès, de rectification ou d’effacement, contactez l’équipe recrutement.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Fermer</AlertDialogCancel></AlertDialogFooter></AlertDialogContent></AlertDialog></PortalShell>;
 }
 
 type PortalSession = Awaited<ReturnType<typeof getPortalSession>>;
 export function CandidatePortalPage({ view, questionIndex }: { view: "overview" | "questions" | "review" | "confirmation"; questionIndex?: number | undefined }) {
   const get = useServerFn(getPortalSession);
-  const [ready, setReady] = useState<boolean | null>(null);
   const navigate = useNavigate();
-  useEffect(() => { supabase.auth.getUser().then(({ data }) => setReady(!!data.user)); }, []);
-  const query = useQuery({ queryKey: ["portal-session"], queryFn: () => get(), enabled: ready === true, retry: false });
+  const query = useQuery({ queryKey: ["portal-session"], queryFn: () => get(), retry: false });
   useEffect(() => { if (query.data?.status === "completed" && view !== "confirmation") void navigate({ to: "/espace-candidat/confirmation", replace: true }); }, [query.data?.status, view, navigate]);
-  if (ready === null || (ready && query.isPending)) return <PortalShell><p className="text-muted-foreground">Chargement de votre pré-entretien…</p></PortalShell>;
-  if (!ready || query.error || !query.data) return <PortalShell><LockKeyhole className="mb-5 h-8 w-8 text-primary" /><h1 className="text-2xl font-semibold">Accès à votre pré-entretien</h1><p className="mt-4 text-muted-foreground">{query.error ? "Votre invitation n’est plus valide ou votre lien de connexion a expiré." : "Connectez-vous avec le lien sécurisé reçu par e-mail."}</p><Button className="mt-6" onClick={() => navigate({ to: "/espace-candidat" })}>Recevoir un lien</Button></PortalShell>;
+  if (query.isPending) return <PortalShell><p className="text-muted-foreground">Chargement de votre pré-entretien…</p></PortalShell>;
+  if (query.error || !query.data) return <PortalShell><LockKeyhole className="mb-5 h-8 w-8 text-primary" /><h1 className="text-2xl font-semibold">Accès à votre pré-entretien</h1><p className="mt-4 text-muted-foreground">{query.error ? "Votre lien candidat est invalide, expiré ou révoqué." : "Ouvrez votre lien candidat individuel."}</p><Button className="mt-6" onClick={() => navigate({ to: "/espace-candidat" })}>Accès candidat</Button></PortalShell>;
   return <PortalShell signedIn>{view === "overview" ? <Overview session={query.data} /> : view === "confirmation" && query.data.status === "completed" ? <Confirmation session={query.data} /> : <Questionnaire key={`${query.data.startedAt}:${questionIndex ?? "resume"}`} session={query.data} initialReview={view === "review"} questionIndex={questionIndex} />}</PortalShell>;
 }
 
