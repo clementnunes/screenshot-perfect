@@ -61,6 +61,7 @@ export const ANALYSIS_LABEL: Record<string, string> = {
 export const INTERVIEW_LABEL: Record<string, string> = {
   none: "Non démarré",
   not_started: "À réaliser",
+  unavailable: "Non disponible",
   in_progress: "En cours",
   completed: "Terminé",
 };
@@ -294,6 +295,6 @@ export function effectiveInterviewStatus(
   score: number | null | undefined,
   threshold: number | null | undefined,
 ): string {
-  if (status && status !== "none") return status;
-  return requiresInterview(score, threshold) ? "not_started" : "none";
+  if (status === "in_progress" || status === "completed") return status;
+  return requiresInterview(score, threshold) ? (status && status !== "none" ? status : "not_started") : "unavailable";
 }

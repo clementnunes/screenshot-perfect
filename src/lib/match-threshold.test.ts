@@ -11,9 +11,10 @@ describe("effectiveInterviewStatus", () => {
     expect(effectiveInterviewStatus(undefined, 76, 70)).toBe("not_started");
     expect(effectiveInterviewStatus("none", 76, 70)).toBe("not_started");
   });
-  it("keeps a profile below the threshold as not started", () => {
-    expect(effectiveInterviewStatus(undefined, 50, 70)).toBe("none");
-    expect(effectiveInterviewStatus(undefined, 70, 70)).toBe("none");
+  it("shows a profile below or at the threshold as unavailable", () => {
+    expect(effectiveInterviewStatus(undefined, 50, 70)).toBe("unavailable");
+    expect(effectiveInterviewStatus(undefined, 70, 70)).toBe("unavailable");
+    expect(effectiveInterviewStatus("not_started", 43, 50)).toBe("unavailable");
   });
   it("never overrides an interview already underway", () => {
     expect(effectiveInterviewStatus("in_progress", 76, 70)).toBe("in_progress");
