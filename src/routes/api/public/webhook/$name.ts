@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { cvAnalysisInput } from "@/lib/cv-contract";
+import { parseCvResult } from "@/lib/cv-contract";
 import { interviewAnswerInput, interviewQuestionsInput } from "@/lib/interview-contract";
 import { isAuthorizedWebhook } from "@/lib/webhook-auth";
 
@@ -11,7 +11,7 @@ import { isAuthorizedWebhook } from "@/lib/webhook-auth";
 const schemas = {
   "candidate-received": z.object({ job_id: z.string().uuid(), full_name: z.string().min(2).max(120), email: z.string().email().max(255), phone: z.string().max(40).optional() }),
   "analyze-cv": z.object({ application_id: z.string().uuid() }),
-  "cv-analysis-result": cvAnalysisInput,
+  "cv-analysis-result": z.object({ application_id: z.string().uuid() }).passthrough(),
   "interview-completed": z.object({ application_id: z.string().uuid() }),
   "interview-prepared": z.object({ application_id: z.string().uuid(), questions: interviewQuestionsInput }),
   "interview-answer": interviewAnswerInput,
@@ -67,8 +67,10 @@ export const Route = createFileRoute("/api/public/webhook/$name")({
             break;
           }
           case "cv-analysis-result": {
-            const d = parsed.data as z.infer<typeof cvAnalysisInput>;
-            result = await lib.saveCvAnalysis(d.application_id, d.result);
+            const d = parsed.data as { application_id: string; result?: unknown };
+            const r = parseCvResult(d.result ?? d);
+            if (!r) return Response.json({ error: "invalid analysis format" }, { status: 400 });
+            result = await lib.saveCvAnalysis(d.application_id, r);
             break;
           }
           case "interview-completed": {

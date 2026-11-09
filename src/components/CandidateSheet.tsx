@@ -11,7 +11,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ANALYSIS_STEPS, DECISION_LABEL, type CvAnalysisResult, type InterviewSummary } from "@/lib/recruitment";
+import { ANALYSIS_STEPS, DECISION_LABEL, type CvAnalysisView, type N8nDetail, type InterviewSummary } from "@/lib/recruitment";
 import { eraseCandidate, recordDecision, regenerateCandidateLink, retryCvAnalysis, retryInterviewAnalysis, revokeCandidateLink, requestInterview } from "@/lib/recruitment.functions";
 import { CriterionPill, InterviewPill, RecommendationPill, ScoreBar } from "./StatusBadges";
 import { CandidateLinkBox } from "./AddApplicationDialog";
@@ -116,7 +116,7 @@ export function CandidateSheet({ applicationId, onClose }: { applicationId: stri
     }
   }
 
-  const analysis = data?.analyses[0]?.result as CvAnalysisResult | undefined;
+  const analysis = data?.analyses[0]?.result as CvAnalysisView | undefined;
   const summary = data?.interview?.summary as InterviewSummary | null | undefined;
   const answers = data?.interview?.interview_answers ?? [];
 
@@ -138,7 +138,7 @@ export function CandidateSheet({ applicationId, onClose }: { applicationId: stri
               </div>
               <div className="pt-4">
                 <Progress status={data.app.analysis_status} error={data.app.analysis_error} retrying={busy} onRetry={() => run(() => retry({ data: { applicationId: data.app.id } }))} />
-                {data.app.cv_path && data.app.analysis_status === "pending" && <Button className="mt-3" size="sm" variant="outline" disabled={busy} onClick={() => run(async () => { const r = await retry({ data: { applicationId: data.app.id } }); if (!r.ok) throw new Error(r.error); return r; })}><FileText /> Analyser le CV</Button>}
+                {data.app.cv_path && !["extracting", "analyzing"].includes(data.app.analysis_status) && <Button className="mt-3" size="sm" variant="outline" disabled={busy} onClick={() => run(async () => { const r = await retry({ data: { applicationId: data.app.id } }); if (!r.ok) throw new Error(r.error); return r; })}><FileText /> {data.app.analysis_status === "done" ? "Relancer l'analyse du CV" : "Analyser le CV"}</Button>}
               </div>
             </SheetHeader>
 
@@ -165,6 +165,7 @@ export function CandidateSheet({ applicationId, onClose }: { applicationId: stri
               ) : <p className="text-sm text-muted-foreground">Le candidat n'a pas encore déposé de CV.</p>}
             </Section>
 
+            {analysis?.detail ? <N8nSections analysis={analysis} detail={analysis.detail} count={data.analyses.length} /> : (<>
             <Section n={3} title="Synthèse de l'analyse IA">
               {analysis ? (
                 <div className="space-y-2 text-sm">
@@ -208,6 +209,8 @@ export function CandidateSheet({ applicationId, onClose }: { applicationId: stri
                 <ul className="list-disc space-y-1 pl-5 text-sm">{analysis.missing_information.map((m) => <li key={m}>{m}</li>)}</ul>
               ) : <p className="text-sm text-muted-foreground">Aucune information manquante signalée.</p>}
             </Section>
+
+            </>)}
 
             <Section n={7} title="Questions et réponses du pré-entretien">
               <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -280,5 +283,86 @@ export function CandidateSheet({ applicationId, onClose }: { applicationId: stri
         )}
       </SheetContent>
     </Sheet>
+  );
+}
+
+const SKILL_STATUS: Record<string, string> = { DEMONTREE: "Démontrée", MENTIONNEE: "Mentionnée", ABSENTE: "Absente", A_VERIFIER: "À vérifier" };
+
+function List({ items, tone }: { items: string[]; tone?: "good" | "warn" }) {
+  if (!items.length) return <p className="text-sm text-muted-foreground">—</p>;
+  return (
+    <ul className="space-y-1.5 text-sm">
+      {items.map((t) => (
+        <li key={t} className={cn("rounded-md border-l-2 bg-muted/40 px-3 py-1.5", tone === "good" ? "border-primary" : tone === "warn" ? "border-destructive/60" : "border-border")}>{t}</li>
+      ))}
+    </ul>
+  );
+}
+
+function N8nSections({ analysis, detail, count }: { analysis: CvAnalysisView; detail: N8nDetail; count: number }) {
+  return (
+    <>
+      <Section n={3} title="Synthèse de l'analyse IA">
+        <div className="space-y-3 text-sm">
+          {detail.level && <span className="inline-block rounded bg-muted px-2 py-0.5 text-xs font-medium">{detail.level.replace(/_/g, " ").toLowerCase().replace(/^./, (c) => c.toUpperCase())}</span>}
+          <p>{analysis.candidate_summary}</p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div><div className="mb-1.5 text-xs font-medium text-muted-foreground">Points forts</div><List items={detail.strengths} tone="good" /></div>
+            <div><div className="mb-1.5 text-xs font-medium text-muted-foreground">Écarts avec la fiche</div><List items={detail.gaps} tone="warn" /></div>
+          </div>
+          <p className="text-xs text-muted-foreground">{count} analyse(s) conservée(s). Proposition d'aide à la décision, non décisionnelle.</p>
+        </div>
+      </Section>
+
+      <Section n={4} title="Expérience professionnelle">
+        <ul className="space-y-3 text-sm">
+          {detail.experiences.map((e, i) => (
+            <li key={i} className="rounded-md border p-3">
+              <div className="flex flex-wrap justify-between gap-2"><span className="font-medium">{e.intitule_poste} · {e.entreprise}</span><span className="text-xs text-muted-foreground">{e.periode as string}{e.duree_exploitable ? ` · ${e.duree_exploitable as string}` : ""}</span></div>
+              {Array.isArray(e.responsabilites) && <ul className="mt-2 list-disc space-y-0.5 pl-5 text-muted-foreground">{(e.responsabilites as string[]).map((r) => <li key={r}>{r}</li>)}</ul>}
+              {typeof e.lien_aux_missions_du_poste === "string" && <p className="mt-2 text-xs text-primary">{e.lien_aux_missions_du_poste}</p>}
+            </li>
+          ))}
+          {!detail.experiences.length && <p className="text-muted-foreground">{analysis.experience_summary || "—"}</p>}
+        </ul>
+      </Section>
+
+      <Section n={5} title="Compétences identifiées">
+        <div className="space-y-4">
+          {detail.skills.filter((g) => g.items.length).map((g) => (
+            <div key={g.group}>
+              <div className="mb-1.5 text-xs font-medium uppercase text-muted-foreground">{g.group}</div>
+              <div className="overflow-hidden rounded-md border">
+                <table className="w-full text-sm"><tbody>
+                  {g.items.map((s) => (
+                    <tr key={s.competence} className="border-t align-top first:border-t-0">
+                      <td className="w-1/3 px-3 py-2 font-medium">{s.competence}</td>
+                      <td className="px-3 py-2"><span className={cn("rounded px-1.5 py-0.5 text-xs", s.statut === "DEMONTREE" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>{SKILL_STATUS[s.statut] ?? s.statut}</span></td>
+                      <td className="px-3 py-2 text-muted-foreground">{s.justification}</td>
+                    </tr>
+                  ))}
+                </tbody></table>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      <Section n={6} title="Correspondance pondérée et points à vérifier">
+        <div className="space-y-4 text-sm">
+          {detail.categories.map((c) => (
+            <div key={c.key}>
+              <div className="flex justify-between"><span className="font-medium">{c.label}</span><span className="text-xs text-muted-foreground">{c.score} / 100 · poids {c.weight} %</span></div>
+              <div className="mt-1 h-1.5 rounded bg-muted"><div className="h-full rounded bg-primary" style={{ width: `${Math.max(0, Math.min(100, c.score))}%` }} /></div>
+              {c.justification && <p className="mt-1 text-xs text-muted-foreground">{c.justification}</p>}
+            </div>
+          ))}
+          {detail.limitations && <p className="text-xs text-muted-foreground">Limites : {detail.limitations}</p>}
+          <div><div className="mb-1.5 text-xs font-medium text-muted-foreground">Informations manquantes</div><List items={analysis.missing_information} /></div>
+          <div><div className="mb-1.5 text-xs font-medium text-muted-foreground">Points à vérifier en entretien</div><List items={detail.to_verify} /></div>
+          {detail.suggested_questions.length > 0 && <div><div className="mb-1.5 text-xs font-medium text-muted-foreground">Questions suggérées par l'analyse</div><ol className="list-decimal space-y-1 pl-5">{detail.suggested_questions.map((q) => <li key={q}>{q}</li>)}</ol></div>}
+        </div>
+      </Section>
+    </>
   );
 }

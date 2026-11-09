@@ -1,16 +1,17 @@
 // Server-only recruitment workflows (CV analysis, interview analysis, tokens, notifications).
 import { generateResponse } from "@lovable.dev/ai-gateway";
 import { z } from "zod";
-import { cvAnalysisInput } from "./cv-contract";
-export { cvAnalysisInput };
+import { parseCvResult } from "./cv-contract";
+export { parseCvResult };
 
 export const CV_ANALYSIS_WEBHOOK_URL = "https://nmudhoo.n8n-wsk.com/webhook-test/a4da0844-bdf2-498c-ab39-181adaa00474";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
   COMMON_QUESTION_COUNT,
   computeMatchScore,
+  computeCategoryScore,
   PERSONALIZED_QUESTION_COUNT,
-  type CvAnalysisResult,
+  type CvAnalysisView,
   type InterviewSummary,
 } from "./recruitment";
 
@@ -173,8 +174,8 @@ export async function runCvAnalysis(applicationId: string) {
     if (!res.ok) throw new Error(res.status === 404 ? "Le webhook n8n d’analyse n’écoute pas (lancez « Execute workflow » en mode test)." : `n8n a refusé l’analyse (${res.status}).`);
     // n8n may answer directly with the analysis, or later through the "cv-analysis-result" callback.
     const body = await res.json().catch(() => null);
-    const direct = cvAnalysisInput.shape.result.safeParse((body as { result?: unknown } | null)?.result ?? body);
-    if (direct.success) return saveCvAnalysis(applicationId, direct.data);
+    const direct = parseCvResult(body);
+    if (direct) return saveCvAnalysis(applicationId, direct);
     return { ok: true as const };
   } catch (e) {
     const message = e instanceof Error ? e.message : "Erreur inconnue";
@@ -186,12 +187,12 @@ export async function runCvAnalysis(applicationId: string) {
 
 
 /** Persists an analysis produced by n8n. Scoring stays in the app. */
-export async function saveCvAnalysis(applicationId: string, result: CvAnalysisResult, source = "n8n") {
+export async function saveCvAnalysis(applicationId: string, result: CvAnalysisView, source = "n8n") {
   const { data: app, error } = await supabaseAdmin.from("applications").select("id, job_id, jobs(title)").eq("id", applicationId).single();
   if (error || !app) throw new Error("Candidature introuvable");
   const { data: criteria } = await supabaseAdmin.from("job_criteria").select("*").eq("job_id", app.job_id).order("position");
   try {
-    const score = computeMatchScore(criteria ?? [], result.criteria_analysis);
+    const score = (result.detail ? computeCategoryScore(result.detail.categories) : null) ?? computeMatchScore(criteria ?? [], result.criteria_analysis);
 
     await supabaseAdmin.from("cv_analyses").insert({
       application_id: applicationId,

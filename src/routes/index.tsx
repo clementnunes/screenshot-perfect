@@ -1,7 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { ChevronRight, Search } from "lucide-react";
+import { ChevronRight, FileText, Search } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
+import { retryCvAnalysis } from "@/lib/recruitment.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { RecruiterShell, useActiveJob } from "@/components/RecruiterShell";
 import { AddApplicationDialog } from "@/components/AddApplicationDialog";
@@ -11,7 +14,7 @@ import { AnalysisPill, InterviewPill, RecommendationPill, ScoreBar } from "@/com
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { FILTERS, matchesFilter, type CvAnalysisResult, type DashboardFilter } from "@/lib/recruitment";
+import { FILTERS, matchesFilter, type CvAnalysisView, type DashboardFilter } from "@/lib/recruitment";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
@@ -42,12 +45,12 @@ function Dashboard() {
       if (!job) return [];
       const { data, error } = await supabase
         .from("applications")
-        .select("id, status, analysis_status, match_score, recommendation, created_at, candidates(full_name, email), interviews(status), cv_analyses(result, created_at)")
+        .select("id, status, cv_path, analysis_status, match_score, recommendation, created_at, candidates(full_name, email), interviews(status), cv_analyses(result, created_at)")
         .eq("job_id", job.id)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data.map((a) => {
-        const latest = [...(a.cv_analyses ?? [])].sort((x, y) => y.created_at.localeCompare(x.created_at))[0]?.result as CvAnalysisResult | undefined;
+        const latest = [...(a.cv_analyses ?? [])].sort((x, y) => y.created_at.localeCompare(x.created_at))[0]?.result as CvAnalysisView | undefined;
         return { ...a, analysis: latest, interviewStatus: a.interviews?.status };
       });
     },
@@ -132,7 +135,7 @@ function Dashboard() {
                   <td className="px-4 py-3"><ScoreBar score={a.match_score} /></td>
                   <td className="px-4 py-3"><InterviewPill status={a.interviewStatus} /></td>
                   <td className="px-4 py-3">{a.status === "decided" ? <span className="text-xs font-medium">Décision prise</span> : <RecommendationPill value={a.recommendation} />}</td>
-                  <td className="px-4 py-3 text-right"><Button size="sm" variant="ghost">Examiner <ChevronRight /></Button></td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right"><AnalyzeButton id={a.id} status={a.analysis_status} hasCv={!!a.cv_path} /><Button size="sm" variant="ghost">Examiner <ChevronRight /></Button></td>
                 </tr>
               ))}
             </tbody>
@@ -143,5 +146,25 @@ function Dashboard() {
 
       <CandidateSheet applicationId={open} onClose={() => setOpen(null)} />
     </div>
+  );
+}
+
+function AnalyzeButton({ id, status, hasCv }: { id: string; status: string; hasCv: boolean }) {
+  const [busy, setBusy] = useState(false);
+  const analyze = useServerFn(retryCvAnalysis);
+  const qc = useQueryClient();
+  if (!hasCv) return null;
+  const running = busy || ["extracting", "analyzing"].includes(status);
+  return (
+    <Button size="sm" variant="outline" className="mr-1" disabled={running} onClick={async (e) => {
+      e.stopPropagation();
+      setBusy(true);
+      try {
+        const r = await analyze({ data: { applicationId: id } });
+        if (!r.ok) throw new Error(r.error);
+        toast.success("Analyse du CV lancée");
+      } catch (err) { toast.error(err instanceof Error ? err.message : "Erreur"); }
+      finally { setBusy(false); qc.invalidateQueries({ queryKey: ["applications"] }); }
+    }}><FileText /> {running ? "Analyse…" : status === "done" ? "Réanalyser" : "Analyser"}</Button>
   );
 }

@@ -33,3 +33,6 @@ n8n peut répondre directement avec le résultat (« Respond to Webhook », obje
 ```
 
 Le score de correspondance est calculé par l’application à partir des critères pondérés. Aucun rejet n’est proposé par n8n.
+
+### Format français (recommandé)
+L’application accepte aussi la sortie n8n en français (`experience_professionnelle`, `competences_identifiees`, `pre_entretien`, `recommandation_ia`, `analyse_complete` avec `correspondance_pourcentage` par catégorie `{score, poids_percent, justification}`), y compris enveloppée dans un tableau. Le score affiché est recalculé par l’application à partir des scores et poids des catégories ; `niveau` est converti en recommandation non décisionnelle.
