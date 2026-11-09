@@ -4,6 +4,7 @@ import { z } from "zod";
 import { readSecret } from "./runtime-env";
 import { prepareExistingQuestions } from "./candidate-portal.server";
 import { parseCvResult } from "./cv-contract";
+import { extractInterviewSummary } from "./interview-summary";
 export { parseCvResult };
 
 export const CV_BULK_ANALYSIS_WEBHOOK_URL = "https://nmudhoo.n8n-wsk.com/webhook-test/a4da0844-bdf2-498c-ab39-181adaa00475";
@@ -65,19 +66,32 @@ export async function audit(actor: string, action: string, entity: string, entit
 
 /** Records a notification and forwards it to n8n when an outbound URL is configured. */
 /** Sends the pre-interview questions and answers to n8n, which owns the summary. */
-export async function sendInterviewForSummary(applicationId: string, event: "interview_submitted" | "answer_saved" = "interview_submitted") {
-  const { data: app } = await supabaseAdmin.from("applications").select("id, job_id, candidates(full_name, email), jobs(title), interviews(id, completed_at)").eq("id", applicationId).single();
+export async function sendInterviewForSummary(
+  applicationId: string,
+  event: "interview_submitted" | "answer_saved" = "interview_submitted",
+  opts: { manual?: boolean } = {},
+) {
+  const { data: app } = await supabaseAdmin.from("applications").select("id, status, job_id, candidates(full_name, email), jobs(title), interviews(id, status, completed_at)").eq("id", applicationId).single();
   const iv = Array.isArray(app?.interviews) ? app?.interviews[0] : app?.interviews;
   if (!app || !iv) throw new Error("Aucun pré-entretien pour ce candidat.");
+  // Only a finished pre-interview has a final synthesis to wait for.
+  const finished = iv.status === "completed";
+  if (finished) await supabaseAdmin.from("interviews").update({ analysis_status: "analyzing" }).eq("id", iv.id);
   const [{ data: questions }, { data: answers }] = await Promise.all([
     supabaseAdmin.from("interview_questions").select("id, question, kind, position").eq("application_id", applicationId).order("position"),
     supabaseAdmin.from("interview_answers").select("question_id, answer_text").eq("interview_id", iv.id),
   ]);
   const byQ = new Map((answers ?? []).map((a) => [a.question_id, a.answer_text]));
+  // n8n needs ~30 s; never wait longer than that, or the sheet keeps saying "en cours".
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 120_000);
+  // A manual retry must not be swallowed by n8n's idempotency cache.
+  const idempotencyKey = opts.manual || event === "answer_saved" ? `${iv.id}:${event}:${Date.now()}` : iv.id;
   try {
     const res = await fetch(INTERVIEW_SUMMARY_WEBHOOK_URL, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-webhook-secret": readSecret("N8N_WEBHOOK_SECRET") ?? "", "idempotency-key": event === "interview_submitted" ? iv.id : `${iv.id}:${event}:${Date.now()}` },
+      headers: { "content-type": "application/json", "x-webhook-secret": readSecret("N8N_WEBHOOK_SECRET") ?? "", "idempotency-key": idempotencyKey },
+      signal: ctrl.signal,
       body: JSON.stringify({
         type: event,
         application_id: applicationId,
@@ -88,11 +102,30 @@ export async function sendInterviewForSummary(applicationId: string, event: "int
         qa: (questions ?? []).map((q) => ({ position: q.position, kind: q.kind, question: q.question, answer: byQ.get(q.id) ?? "" })),
       }),
     });
+    const text = await res.text().catch(() => "");
+    clearTimeout(timer);
+    let returned: unknown = null;
+    try {
+      returned = text ? JSON.parse(text) : null;
+    } catch {
+      returned = null;
+    }
+    const summary = extractInterviewSummary(returned);
     await audit("n8n", res.ok ? "interview_summary_sent" : "interview_summary_failed", "application", applicationId, { status: res.status });
-    return { ok: res.ok, status: res.status };
+    if (summary && finished) {
+      await supabaseAdmin.from("interviews").update({ summary: summary as never, analysis_status: "done" }).eq("id", iv.id);
+      if (app.status !== "decided") await supabaseAdmin.from("applications").update({ status: "to_review" }).eq("id", applicationId).neq("status", "decided");
+      await audit("n8n", "interview_summary_saved", "application", applicationId, { from: "response" });
+      return { ok: res.ok, status: res.status, saved: true as const };
+    }
+    // Nothing came back: no generation is underway, so the sheet must not claim one is.
+    if (finished) await supabaseAdmin.from("interviews").update({ analysis_status: "pending" }).eq("id", iv.id);
+    return { ok: res.ok, status: res.status, saved: false as const };
   } catch (e) {
+    clearTimeout(timer);
+    if (finished) await supabaseAdmin.from("interviews").update({ analysis_status: "pending" }).eq("id", iv.id);
     await audit("n8n", "interview_summary_failed", "application", applicationId, { message: e instanceof Error ? e.message : String(e) });
-    return { ok: false, status: 0 };
+    return { ok: false, status: 0, saved: false as const };
   }
 }
 

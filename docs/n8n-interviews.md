@@ -11,7 +11,7 @@ Les pages `/espace-candidat`, `/espace-candidat/accueil`, `/espace-candidat/ques
 - `interview_requested` (WF-06) : ancien événement, non envoyé par le bouton « Préparer le pré-entretien ». Ce bouton assemble localement toutes les questions communes enregistrées et celles de la dernière analyse CV. Ne générer, réécrire ou remplacer aucune question. Aucune invitation n’est nécessaire.
 - `interview_submit` (WF-07) : `application_id`, `interview_id`, `submitted_at`. Les réponses sont déjà enregistrées et définitivement verrouillées. Lire leur contenu par `interview-submission`, puis déclencher WF-08.
 - `answer_saved` : envoyé à `INTERVIEW_SUMMARY_WEBHOOK_URL` (production) à chaque sauvegarde de réponse du candidat, avec toutes les questions et réponses enregistrées à cet instant. Clé d'idempotence unique par envoi.
-- `interview_submitted` : envoyé à la même URL à la soumission du pré-entretien et par le bouton recruteur « Test générer synthèse ». Clé d'idempotence = `interview_id`.
+- `interview_submitted` : envoyé à la même URL à la soumission du pré-entretien et par le bouton recruteur « Test générer synthèse ». Clé d'idempotence = `interview_id` à la soumission, unique pour un relancement manuel. L'application attend la synthèse dans la réponse HTTP (`synthese_globale.resume`, ou `resume` à la racine) et l'enregistre aussitôt ; au-delà de 2 minutes sans réponse, la génération est considérée comme perdue et le recruteur peut relancer.
 
 Les réponses sont maintenant sauvegardées directement et atomiquement par l’application : n8n n’est plus nécessaire pour chaque frappe. Une panne n8n ne perd pas les réponses ou la soumission ; la notification est conservée dans `notifications` pour reprise opérationnelle. Aucun webhook WF-06/07/08 n’est inventé : `N8N_OUTBOUND_URL` reste à fournir.
 
@@ -22,7 +22,7 @@ POST `/api/public/webhook/<nom>`, avec `x-webhook-secret: N8N_WEBHOOK_SECRET` et
 - `interview-prepared` : ancien callback compatible ; il réutilise exclusivement les questions enregistrées, sans prendre les nouveaux textes du payload.
 - `interview-invited` : ancien callback compatible, date un éventuel envoi mais ne conditionne plus l’accès au portail.
 - `interview-submission` : `{ application_id }`. Retourne uniquement la session soumise, ses questions et réponses. Refuse les sessions non soumises.
-- `interview-summary` : `{ application_id, summary: { summary, strengths: [], points_to_verify: [], per_question: [{ question, assessment }] } }`. Enregistre la synthèse sur une session soumise, visible uniquement au recruteur.
+- `interview-summary` : `{ application_id, synthese_globale: { resume, points_forts?, points_a_verifier?, per_question? } }` — ou la forme applicative `{ application_id, summary: { summary, strengths, points_to_verify, per_question } }`. Enregistre la synthèse sur une session soumise, visible uniquement au recruteur.
 - `interview-completed` : compatibilité ancienne ; contrôle toutes les réponses existantes, verrouille et transmet la demande de synthèse à n8n, sans IA locale.
 
 Publier avant les callbacks de production. Le lien candidat et son cookie permettent de revenir jusqu’à expiration/révocation du lien. Quitter l’espace supprime ce cookie sans affecter la session recruteur. Aucune information de score ou d’évaluation interne n’est renvoyée au candidat.

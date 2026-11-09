@@ -12,6 +12,7 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ANALYSIS_STEPS, analysisScore, effectiveInterviewStatus, requiresInterview, DECISION_LABEL, isSkillMentioned, type CvAnalysisView, type N8nDetail, type InterviewSummary } from "@/lib/recruitment";
+import { isSummaryGenerating } from "@/lib/interview-summary";
 import { eraseCandidate, recordDecision, regenerateCandidateLink, retryCvAnalysis, retryInterviewAnalysis, testInterviewSummary, revokeCandidateLink, requestInterview } from "@/lib/recruitment.functions";
 import { CriterionPill, InterviewPill, RecommendationPill, ScoreBar } from "./StatusBadges";
 import { CandidateLinkBox } from "./AddApplicationDialog";
@@ -246,7 +247,7 @@ export function CandidateSheet({ applicationId, onClose }: { applicationId: stri
                 </div>
               ) : data.interview?.analysis_status === "error" ? (
                 <Button size="sm" variant="outline" disabled={busy} onClick={() => run(() => retryInterview({ data: { applicationId: data.app.id } }))}><RefreshCw /> Relancer l'analyse du pré-entretien</Button>
-              ) : <p className="text-sm text-muted-foreground">{data.interview?.status === "completed" ? "Analyse en cours…" : "Disponible lorsque le candidat aura terminé."}</p>}
+              ) : <p className="text-sm text-muted-foreground">{isSummaryGenerating(data.interview?.analysis_status, data.interview?.updated_at) ? "Analyse en cours…" : data.interview?.status === "completed" ? "Synthèse non reçue pour l'instant." : "Disponible lorsque le candidat aura terminé."}</p>}
               <Button size="sm" variant="outline" className="mt-3" disabled={busy || !data.interview} onClick={async () => {
                 try {
                   const r = await sendSummary({ data: { applicationId: data.app.id } });

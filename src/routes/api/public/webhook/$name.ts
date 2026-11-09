@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { parseCvResult } from "@/lib/cv-contract";
 import { interviewAnswerInput, interviewQuestionsInput } from "@/lib/interview-contract";
+import { extractInterviewSummary } from "@/lib/interview-summary";
 import { isAuthorizedWebhook } from "@/lib/webhook-auth";
 
 // n8n integration endpoints: POST /api/public/webhook/<name>
@@ -13,7 +14,8 @@ const schemas = {
   "analyze-cv": z.object({ application_id: z.string().uuid() }),
   "cv-analysis-result": z.object({ application_id: z.string().uuid() }).passthrough(),
   "interview-submission": z.object({ application_id: z.string().uuid() }),
-  "interview-summary": z.object({ application_id: z.string().uuid(), summary: z.object({ summary: z.string(), strengths: z.array(z.string()), points_to_verify: z.array(z.string()), per_question: z.array(z.object({ question: z.string(), assessment: z.string() })) }) }),
+  // n8n sends the synthesis at synthese_globale.resume; the app's own shape is also accepted.
+  "interview-summary": z.object({ application_id: z.string().uuid() }).passthrough(),
   "interview-completed": z.object({ application_id: z.string().uuid() }),
   "interview-prepared": z.object({ application_id: z.string().uuid(), questions: interviewQuestionsInput }),
   "interview-answer": interviewAnswerInput,
@@ -83,8 +85,10 @@ export const Route = createFileRoute("/api/public/webhook/$name")({
             result = { interview_id: iv.id, submitted_at: iv.completed_at, questions: qs ?? [], answers: iv.interview_answers }; break;
           }
           case "interview-summary": {
-            const d = parsed.data as z.infer<(typeof schemas)["interview-summary"]>;
-            const saved = await supabaseAdmin.from("interviews").update({ summary: d.summary, analysis_status: "done" }).eq("application_id", d.application_id).eq("status", "completed").select("id").maybeSingle();
+            const d = parsed.data as { application_id: string };
+            const summary = extractInterviewSummary(body);
+            if (!summary) return Response.json({ error: "no synthesis found", expected: "synthese_globale.resume" }, { status: 400 });
+            const saved = await supabaseAdmin.from("interviews").update({ summary: summary as never, analysis_status: "done" }).eq("application_id", d.application_id).eq("status", "completed").select("id").maybeSingle();
             if (saved.error) throw saved.error;
             if (!saved.data) return Response.json({ error: "submitted interview required" }, { status: 409 });
             await supabaseAdmin.from("applications").update({ status: "to_review" }).eq("id", d.application_id).neq("status", "decided");
