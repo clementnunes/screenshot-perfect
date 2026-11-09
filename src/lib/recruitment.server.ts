@@ -4,7 +4,7 @@ import { z } from "zod";
 import { parseCvResult } from "./cv-contract";
 export { parseCvResult };
 
-export const CV_ANALYSIS_WEBHOOK_URL = "https://nmudhoo.n8n-wsk.com/webhook-test/a4da0844-bdf2-498c-ab39-181adaa00474";
+export const CV_ANALYSIS_WEBHOOK_URL = "https://nmudhoo.n8n-wsk.com/webhook/a4da0844-bdf2-498c-ab39-181adaa00474";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
   COMMON_QUESTION_COUNT,
@@ -171,7 +171,7 @@ export async function runCvAnalysis(applicationId: string) {
         cv_pages: pages,
       }),
     });
-    if (!res.ok) throw new Error(res.status === 404 ? "Le webhook n8n d’analyse n’écoute pas (lancez « Execute workflow » en mode test)." : `n8n a refusé l’analyse (${res.status}).`);
+    if (!res.ok) throw new Error(res.status === 404 ? "Le webhook n8n d’analyse n’est pas actif (activez le workflow ET-02 dans n8n)." : `n8n a refusé l’analyse (${res.status}).`);
     // n8n may answer directly with the analysis, or later through the "cv-analysis-result" callback.
     const body = await res.json().catch(() => null);
     const direct = parseCvResult(body);
