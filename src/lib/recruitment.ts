@@ -224,7 +224,8 @@ export function normalizeN8nAnalysis(n: Loose): CvAnalysisView {
     : SKILL_GROUPS.map(([group, keys]) => ({ group, items: ((pick(comp, ...keys) ?? []) as Loose[]).map(toSkill).filter((x): x is N8nSkill => !!x) }));
   const corr: Loose = pick(full, "correspondance_pourcentage", "correspondance") ?? pick(n, "correspondance_pourcentage", "correspondance") ?? {};
   // n8n may send a plain percentage (76) instead of per-category scores.
-  const scoreGlobal = Number.isFinite(Number(corr)) ? Math.round(Number(corr)) : null;
+  const asPct = (v: unknown) => (typeof v === "number" || (typeof v === "string" && v.trim() !== "")) && Number.isFinite(parseFloat(String(v))) ? Math.round(parseFloat(String(v))) : null;
+  const scoreGlobal = asPct(corr) ?? (corr && typeof corr === "object" && Object.keys(corr).length ? null : asPct(pick(n, "correspondance_pourcentage", "correspondance")) ?? asPct(pick(reco, "correspondance_pourcentage", "score")) ?? null);
   const categories: N8nCategory[] = Object.entries(scoreGlobal !== null ? {} : corr)
     .filter(([, v]) => v && typeof v === "object" && Number.isFinite(Number(pick(v, "score"))))
     .map(([raw, v]) => {
