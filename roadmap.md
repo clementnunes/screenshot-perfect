@@ -4,4 +4,5 @@
 - [ ] Brancher le workflow n8n réel (connexion refusée ; adresse de workflow non fournie).
 - [x] Ajouter l’import de fiche de poste vers l’endpoint n8n fourni et remplir les huit sections modifiables.
 - [x] Vérifier la validation du retour n8n (12 tests réussis) et l’import connecté : erreur 404 visible, fiche conservée, aucune erreur de page.
-- [ ] Vérifier un découpage réel réussi (endpoint n8n de test non enregistré ; workflow à mettre en écoute).
+- [x] Utiliser l’URL de production n8n fournie pour la lecture et le découpage des fiches de poste.
+- [ ] Vérifier un découpage réel réussi (en attente d’un fichier de fiche de poste et de la réponse du workflow de production).

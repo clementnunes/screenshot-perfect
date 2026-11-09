@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { parseJobDescriptionResponse, validateJobDescriptionFile } from "./job-description";
+import { JOB_DESCRIPTION_WEBHOOK_URL, parseJobDescriptionResponse, validateJobDescriptionFile } from "./job-description";
 
 export const importJobDescription = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -20,7 +20,7 @@ export const importJobDescription = createServerFn({ method: "POST" })
     body.set("file", file, file.name);
     let response: Response;
     try {
-      response = await fetch("https://nmudhoo.n8n-wsk.com/webhook-test/197db861-6df7-4b3b-942d-146450422c45", {
+      response = await fetch(JOB_DESCRIPTION_WEBHOOK_URL, {
         method: "POST", body, signal: AbortSignal.timeout(90000),
       });
     } catch {
@@ -30,7 +30,7 @@ export const importJobDescription = createServerFn({ method: "POST" })
     if (!response.ok) {
       console.error(`Job description n8n failed [${response.status}]: ${raw}`);
       return { ok: false as const, error: response.status === 404
-        ? "n8n n’écoute pas l’adresse de test. Lancez « Execute workflow » dans n8n, puis réessayez. Votre fiche actuelle est conservée."
+        ? "Le webhook de production n8n est introuvable. Vérifiez que le workflow est publié et actif, puis réessayez. Votre fiche actuelle est conservée."
         : `n8n a refusé l’import (${response.status}). Votre fiche actuelle est conservée.`, status: response.status, details: raw };
     }
     try {
