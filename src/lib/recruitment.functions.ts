@@ -111,7 +111,7 @@ export const testInterviewSummary = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await assertRecruiter(context.supabase as never);
     const { sendInterviewForSummary } = await import("./recruitment.server");
-    return sendInterviewForSummary(data.applicationId, "interview_submitted", { manual: true });
+    return sendInterviewForSummary(data.applicationId, { manual: true });
   });
 
 export const recordDecision = createServerFn({ method: "POST" })

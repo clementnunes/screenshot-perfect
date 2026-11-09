@@ -72,14 +72,13 @@ export async function audit(actor: string, action: string, entity: string, entit
 /** Sends the pre-interview questions and answers to n8n, which owns the summary. */
 export async function sendInterviewForSummary(
   applicationId: string,
-  event: "interview_submitted" | "answer_saved" = "interview_submitted",
   opts: { manual?: boolean } = {},
 ) {
   const { data: app } = await supabaseAdmin.from("applications").select("id, status, job_id, candidates(full_name, email), jobs(title), interviews(id, status, completed_at)").eq("id", applicationId).single();
   const iv = Array.isArray(app?.interviews) ? app?.interviews[0] : app?.interviews;
   if (!app || !iv) throw new Error("Aucun pré-entretien pour ce candidat.");
   // Only a finished pre-interview has a final synthesis to wait for.
-  const finished = iv.status === "completed" && event === "interview_submitted";
+  const finished = iv.status === "completed";
   if (finished) await supabaseAdmin.from("interviews").update({ analysis_status: "analyzing" }).eq("id", iv.id);
   const [{ data: questions }, { data: answers }] = await Promise.all([
     supabaseAdmin.from("interview_questions").select("id, question, kind, position").eq("application_id", applicationId).order("position"),
@@ -90,14 +89,14 @@ export async function sendInterviewForSummary(
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 120_000);
   // A manual retry must not be swallowed by n8n's idempotency cache.
-  const idempotencyKey = opts.manual || event === "answer_saved" ? `${iv.id}:${event}:${Date.now()}` : iv.id;
+  const idempotencyKey = opts.manual ? `${iv.id}:manual:${Date.now()}` : iv.id;
   try {
     const res = await fetch(INTERVIEW_SUMMARY_WEBHOOK_URL, {
       method: "POST",
       headers: { "content-type": "application/json", "x-webhook-secret": readSecret("N8N_WEBHOOK_SECRET") ?? "", "idempotency-key": idempotencyKey },
       signal: ctrl.signal,
       body: JSON.stringify({
-        type: event,
+        type: "interview_submitted",
         application_id: applicationId,
         interview_id: iv.id,
         submitted_at: iv.completed_at,
