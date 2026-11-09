@@ -57,13 +57,14 @@ export async function audit(actor: string, action: string, entity: string, entit
 }
 
 /** Records a notification and forwards it to n8n when an outbound URL is configured. */
-export async function notify(type: string, applicationId: string | null, payload: Record<string, unknown>) {
+export async function notify(type: string, applicationId: string | null, payload: Record<string, unknown>, required = false) {
+  const url = process.env["N8N_OUTBOUND_URL"];
+  if (!url && required) throw new Error("Le workflow n8n n’est pas encore connecté.");
   const { data } = await supabaseAdmin
     .from("notifications")
     .insert({ type, application_id: applicationId, payload: payload as never })
     .select("id")
     .single();
-  const url = process.env["N8N_OUTBOUND_URL"];
   if (!url) return;
   try {
     const res = await fetch(url, {
@@ -76,9 +77,28 @@ export async function notify(type: string, applicationId: string | null, payload
       body: JSON.stringify({ type, application_id: applicationId, ...payload }),
     });
     if (data) await supabaseAdmin.from("notifications").update({ status: res.ok ? "sent" : "failed" }).eq("id", data.id);
-  } catch {
+    if (!res.ok) throw new Error(`n8n (${res.status}) : ${await res.text()}`);
+  } catch (error) {
     if (data) await supabaseAdmin.from("notifications").update({ status: "failed" }).eq("id", data.id);
+    if (required) throw error;
   }
+}
+
+export async function requestN8nInterview(applicationId: string, origin: string) {
+  if (!process.env["N8N_OUTBOUND_URL"]) throw new Error("Le workflow n8n n’est pas encore connecté.");
+  const { data: app, error } = await supabaseAdmin.from("applications").select("*, candidates(full_name, email), jobs(*)").eq("id", applicationId).single();
+  if (error || !app) throw new Error("Candidature introuvable.");
+  const { data: iv } = await supabaseAdmin.from("interviews").select("status").eq("application_id", applicationId).maybeSingle();
+  if (iv && iv.status !== "not_started") throw new Error("Ce pré-entretien a déjà commencé.");
+  if (app.status === "decided") throw new Error("Une décision a déjà été prise.");
+  if (!app.cv_path) throw new Error("Un CV est nécessaire.");
+  const { data: templates } = await supabaseAdmin.from("interview_questions").select("question, kind, position").eq("job_id", app.job_id).is("application_id", null).order("position");
+  const link = await issueCandidateLink(applicationId, app.jobs.link_validity_days);
+  await notify("interview_requested", applicationId, {
+    candidate: app.candidates, job: app.jobs, cv_pages: app.cv_pages,
+    question_templates: templates ?? [], candidate_url: `${new URL(origin).origin}/candidat/${link.token}`, expires_at: link.expiresAt,
+  }, true);
+  return { ok: true };
 }
 
 // ---------- AI ----------
@@ -182,10 +202,7 @@ export async function runCvAnalysis(applicationId: string) {
 
     await supabaseAdmin.from("applications").update({ analysis_status: "analyzing" }).eq("id", applicationId);
 
-    const [{ data: criteria }, { data: templates }] = await Promise.all([
-      supabaseAdmin.from("job_criteria").select("*").eq("job_id", job.id).order("position"),
-      supabaseAdmin.from("interview_questions").select("*").eq("job_id", job.id).is("application_id", null).eq("kind", "personalized").order("position"),
-    ]);
+    const { data: criteria } = await supabaseAdmin.from("job_criteria").select("*").eq("job_id", job.id).order("position");
 
     const user = `FICHE DE POSTE
 Intitulé : ${job.title}
@@ -198,8 +215,7 @@ Diplômes / certifications : ${job.diplomas}
 CRITÈRES D'ÉVALUATION (analyse chacun, avec exactement ce libellé) :
 ${(criteria ?? []).map((c) => `- "${c.name}" — ${c.mandatory ? "obligatoire" : "facultatif"}, pondération ${c.weight} %`).join("\n")}
 
-CONSIGNES POUR LES ${PERSONALIZED_QUESTION_COUNT} QUESTIONS PERSONNALISÉES (une question par consigne, fondée sur une expérience précise du CV) :
-${(templates ?? []).map((t, i) => `${i + 1}. ${t.question}`).join("\n")}
+Les questions de pré-entretien sont générées par n8n. Retourne "interview_questions": [] sans générer de question.
 
 CV DU CANDIDAT
 ${cvText}
@@ -213,7 +229,7 @@ Produis l'analyse JSON. "confidence" (0 à 1) mesure uniquement la qualité de l
       withCriteriaEnum((criteria ?? []).map((c) => c.name)),
       cvParser,
     );
-    result.interview_questions = result.interview_questions.slice(0, PERSONALIZED_QUESTION_COUNT);
+    result.interview_questions = [];
 
     const score = computeMatchScore(criteria ?? [], result.criteria_analysis);
 
@@ -226,34 +242,18 @@ Produis l'analyse JSON. "confidence" (0 à 1) mesure uniquement la qualité de l
       model: MODEL,
     });
 
-    // Personalized questions for this application (replace previous ones if re-analysed and not started)
-    const { data: interview } = await supabaseAdmin.from("interviews").select("*").eq("application_id", applicationId).maybeSingle();
-    if (!interview || interview.status === "not_started") {
-      await supabaseAdmin.from("interview_questions").delete().eq("application_id", applicationId);
-      await supabaseAdmin.from("interview_questions").insert(
-        result.interview_questions.map((q, i) => ({
-          job_id: job.id,
-          application_id: applicationId,
-          kind: "personalized",
-          question: q,
-          position: COMMON_QUESTION_COUNT + i,
-        })),
-      );
-      if (!interview) await supabaseAdmin.from("interviews").insert({ application_id: applicationId });
-    }
-
     await supabaseAdmin
       .from("applications")
       .update({
         analysis_status: "done",
         match_score: score,
         recommendation: result.interview_recommendation,
-        status: app.status === "received" ? "interview_pending" : app.status,
+        status: app.status,
       })
       .eq("id", applicationId);
 
     await audit("ai", "cv_analyzed", "application", applicationId, { score, model: MODEL });
-    await notify("interview_invitation", applicationId, { job_title: job.title });
+    await notify("cv_analyzed", applicationId, { job_title: job.title });
     return { ok: true as const };
   } catch (e) {
     const message = e instanceof Error ? e.message : "Erreur inconnue";
@@ -326,6 +326,9 @@ export async function runInterviewAnalysis(applicationId: string) {
 }
 
 export async function getInterviewQuestions(jobId: string, applicationId: string) {
+  const { data: snapshot, error } = await supabaseAdmin.from("interview_questions").select("id, question, kind, position").eq("application_id", applicationId).order("position");
+  if (error) throw new Error(error.message);
+  if (snapshot?.some((q) => q.kind === "common")) return snapshot;
   const [{ data: common }, { data: personal }] = await Promise.all([
     supabaseAdmin.from("interview_questions").select("id, question, kind, position").eq("job_id", jobId).is("application_id", null).eq("kind", "common").order("position").limit(COMMON_QUESTION_COUNT),
     supabaseAdmin.from("interview_questions").select("id, question, kind, position").eq("application_id", applicationId).order("position").limit(PERSONALIZED_QUESTION_COUNT),

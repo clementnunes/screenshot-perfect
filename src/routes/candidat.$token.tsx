@@ -52,7 +52,7 @@ function CandidatePage() {
     queryFn: () => get({ data: { token } }),
     refetchInterval: (q) => {
       const d = q.state.data;
-      return d?.valid && d.hasCv && ["pending", "extracting", "analyzing"].includes(d.analysisStatus) ? 3000 : false;
+      return d?.valid && d.hasCv && (!d.interview || d.interview.questions.length < 6 || ["pending", "extracting", "analyzing"].includes(d.analysisStatus)) ? 3000 : false;
     },
   });
 
@@ -186,39 +186,40 @@ function StepB({ token, s }: { token: string; s: Session }) {
   // Autosave (debounced); cancelled when the candidate moves on explicitly.
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (!q || !current) return;
+    if (!q || !current || !current.text.trim()) return;
     const t = setTimeout(() => {
       save({ data: { token, questionId: q.id, text: current.text, mode: current.mode, nextIndex: index } })
         .then((r) => setSavedAt(r.savedAt))
-        .catch(() => {});
+        .catch((error) => { setSavedAt(null); toast.error(error instanceof Error ? error.message : "Sauvegarde indisponible"); });
     }, 900);
     timer.current = t;
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.text, q?.id]);
 
-  if (s.analysisStatus !== "done" || !iv || questions.length < 6) {
+  if (!iv || questions.length < 6 || !q || !current) {
     return (
       <Card className="p-8 text-center shadow-card">
         <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-muted border-t-primary" />
         <h1 className="mt-4 text-lg font-semibold">Préparation de votre pré-entretien</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          {s.analysisStatus === "error" ? "Votre CV a bien été reçu. L'équipe recrutement doit reprendre sa lecture ; revenez sur ce lien un peu plus tard." : "Nous préparons vos questions à partir de votre CV. Cela prend généralement moins d'une minute."}
+          Votre CV a bien été reçu. Vous recevrez une invitation lorsque votre pré-entretien sera prêt.
         </p>
       </Card>
     );
   }
 
-  const setText = (text: string, mode: "text" | "voice" = current!.mode) => setAnswers({ ...answers, [q!.id]: { text, mode } });
+  const setText = (text: string, mode: "text" | "voice" = current.mode) => setAnswers({ ...answers, [q.id]: { text, mode } });
 
   function toggleVoice() {
+    if (!current) return;
     if (listening) { recRef.current?.stop(); return; }
     const W = window as never as Record<string, new () => SpeechRec>;
     const Ctor = W["SpeechRecognition"] || W["webkitSpeechRecognition"];
     if (!Ctor) return;
     const rec = new Ctor();
     rec.lang = "fr-FR"; rec.continuous = true; rec.interimResults = false;
-    const base = current!.text;
+    const base = current.text;
     let acc = "";
     rec.onresult = (e) => {
       for (let i = e.resultIndex; i < e.results.length; i++) { const r = e.results[i]; if (r?.isFinal) acc += r[0].transcript + " "; }
@@ -229,12 +230,13 @@ function StepB({ token, s }: { token: string; s: Session }) {
   }
 
   async function next() {
-    if (!current!.text.trim()) { toast.error("Merci de saisir une réponse."); return; }
+    if (!current || !q) return;
+    if (!current.text.trim()) { toast.error("Merci de saisir une réponse."); return; }
     if (timer.current) clearTimeout(timer.current);
     setBusy(true);
     try {
       const isLast = index === questions.length - 1;
-      await save({ data: { token, questionId: q!.id, text: current!.text, mode: current!.mode, nextIndex: isLast ? index : index + 1 } });
+      await save({ data: { token, questionId: q.id, text: current.text, mode: current.mode, nextIndex: isLast ? index : index + 1 } });
       if (isLast) {
         await complete({ data: { token } });
         qc.invalidateQueries({ queryKey: ["candidate", token] });
@@ -254,8 +256,8 @@ function StepB({ token, s }: { token: string; s: Session }) {
         <Progress value={((index + 1) / questions.length) * 100} className="mt-2 h-1.5" />
       </div>
       <Card className="p-6 shadow-card">
-        <h1 className="text-lg font-semibold leading-snug">{q!.question}</h1>
-        <Textarea className="mt-4 min-h-48" placeholder="Votre réponse…" value={current!.text} maxLength={5000} onChange={(e) => setText(e.target.value)} />
+        <h1 className="text-lg font-semibold leading-snug">{q.question}</h1>
+        <Textarea className="mt-4 min-h-48" placeholder="Votre réponse…" value={current.text} maxLength={5000} onChange={(e) => setText(e.target.value)} />
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
           {voiceSupported ? (
             <Button type="button" variant="outline" size="sm" onClick={toggleVoice}>{listening ? <><MicOff /> Arrêter la dictée</> : <><Mic /> Répondre à voix haute (facultatif)</>}</Button>

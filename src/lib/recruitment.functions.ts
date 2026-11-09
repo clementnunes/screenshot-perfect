@@ -29,7 +29,7 @@ async function assertRecruiter(supabase: { rpc: (fn: "is_recruiter") => PromiseL
 export const addApplication = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) =>
-    z.object({ jobId: z.string().uuid(), fullName: z.string().trim().min(2).max(120), email: z.string().trim().email().max(255), cv: cvInput.optional() }).parse(d),
+    z.object({ jobId: z.string().uuid(), fullName: z.string().trim().min(2).max(120), email: z.string().trim().email().max(255), cv: cvInput.optional(), analyze: z.boolean().default(true), preserveDuplicate: z.boolean().default(false) }).parse(d),
   )
   .handler(async ({ data, context }) => {
     await assertRecruiter(context.supabase as never);
@@ -37,9 +37,9 @@ export const addApplication = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: job } = await supabaseAdmin.from("jobs").select("link_validity_days").eq("id", data.jobId).single();
     const link = await issueCandidateLink(applicationId, job?.link_validity_days ?? 14);
-    if (data.cv) {
+    if (data.cv && !(duplicate && data.preserveDuplicate)) {
       await storeCv(applicationId, data.cv);
-      await runCvAnalysis(applicationId);
+      if (data.analyze) await runCvAnalysis(applicationId);
     }
     return { token: link.token, expiresAt: link.expiresAt, duplicate };
   });
@@ -54,6 +54,15 @@ export const regenerateCandidateLink = createServerFn({ method: "POST" })
     const link = await issueCandidateLink(data.applicationId, app?.jobs?.link_validity_days ?? 14);
     await audit(context.userId, "link_regenerated", "application", data.applicationId);
     return link;
+  });
+
+export const requestInterview = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ applicationId: z.string().uuid(), origin: z.string().url() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await assertRecruiter(context.supabase as never);
+    const { requestN8nInterview } = await import("./recruitment.server");
+    return requestN8nInterview(data.applicationId, data.origin);
   });
 
 export const revokeCandidateLink = createServerFn({ method: "POST" })
@@ -200,17 +209,13 @@ export const saveCandidateAnswer = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: interview } = await supabaseAdmin.from("interviews").select("*").eq("application_id", app.id).single();
     if (!interview) throw new Error("Pré-entretien indisponible.");
+    if (!app.identity_confirmed_at) throw new Error("Veuillez confirmer votre identité.");
     if (interview.status === "completed") throw new Error("Le pré-entretien est déjà terminé.");
     const questions = await getInterviewQuestions(app.job_id, app.id);
     if (!questions.some((q) => q.id === data.questionId)) throw new Error("Question inconnue.");
-    await supabaseAdmin
-      .from("interview_answers")
-      .upsert({ interview_id: interview.id, question_id: data.questionId, answer_text: data.text, input_mode: data.mode, updated_at: new Date().toISOString() }, { onConflict: "interview_id,question_id" });
-    await supabaseAdmin
-      .from("interviews")
-      .update({ status: "in_progress", current_index: data.nextIndex, started_at: interview.started_at ?? new Date().toISOString() })
-      .eq("id", interview.id)
-      .neq("status", "completed");
+    await notify("interview_answer", app.id, { question_id: data.questionId, answer_text: data.text, input_mode: data.mode, next_index: data.nextIndex }, true);
+    const { data: saved } = await supabaseAdmin.from("interview_answers").select("answer_text").eq("interview_id", interview.id).eq("question_id", data.questionId).maybeSingle();
+    if (saved?.answer_text !== data.text) throw new Error("n8n n’a pas encore confirmé la sauvegarde. Réessayez dans un instant.");
     return { ok: true, savedAt: new Date().toISOString() };
   });
 
@@ -221,16 +226,15 @@ export const completeCandidateInterview = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: interview } = await supabaseAdmin.from("interviews").select("*").eq("application_id", app.id).single();
     if (!interview) throw new Error("Pré-entretien indisponible.");
+    if (!app.identity_confirmed_at) throw new Error("Veuillez confirmer votre identité.");
     if (interview.status !== "completed") {
       const questions = await getInterviewQuestions(app.job_id, app.id);
       const { data: answers } = await supabaseAdmin.from("interview_answers").select("question_id, answer_text").eq("interview_id", interview.id);
       const missing = questions.filter((q) => !answers?.find((a) => a.question_id === q.id && a.answer_text.trim()));
-      if (missing.length) throw new Error("Merci de répondre à toutes les questions avant de valider.");
-      await supabaseAdmin.from("interviews").update({ status: "completed", completed_at: new Date().toISOString() }).eq("id", interview.id);
-      if (app.status !== "decided") await supabaseAdmin.from("applications").update({ status: "interview_done" }).eq("id", app.id);
-      await audit("candidate", "interview_completed", "application", app.id);
-      await notify("interview_completed", app.id, { job_title: app.jobs.title });
-      await runInterviewAnalysis(app.id);
+      if (questions.length !== 6 || missing.length) throw new Error("Merci de répondre à toutes les questions avant de valider.");
+      await notify("interview_submit", app.id, { job_title: app.jobs.title }, true);
+      const { data: saved } = await supabaseAdmin.from("interviews").select("status").eq("id", interview.id).single();
+      if (saved?.status !== "completed") throw new Error("n8n n’a pas encore confirmé la réception de vos réponses.");
     }
     return { ok: true };
   });

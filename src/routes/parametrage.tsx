@@ -174,7 +174,7 @@ function Settings() {
         </div>
       </Block>
 
-      <Block title="Questions de pré-entretien" desc="Six questions au total : quatre communes à tous les candidats et deux personnalisées selon le CV.">
+      <Block title="Références de pré-entretien pour n8n" desc="n8n pilote les six questions, les invitations et la sauvegarde des réponses : quatre communes et deux personnalisées selon le CV.">
         <div className="space-y-6">
           {qList("common", common, COMMON_QUESTION_COUNT, "Posées à l'identique à chaque candidat.")}
           {qList("personalized", personal, PERSONALIZED_QUESTION_COUNT, "Consignes données à l'IA : elle formule pour chaque candidat une question fondée sur une expérience précise de son CV et sur la fiche de poste.")}

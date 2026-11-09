@@ -1,0 +1,4 @@
+- [x] Importer plusieurs CV avec validation des noms/emails et résultat par fichier.
+- [x] Ajouter le suivi recruteur et les échanges sécurisés de pré-entretiens avec n8n.
+- [x] Vérifier les tests et les parcours disponibles (import et message sans connexion ; workflow réel non vérifiable).
+- [ ] Brancher le workflow n8n réel (connexion refusée ; adresse de workflow non fournie).

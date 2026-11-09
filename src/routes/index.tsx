@@ -5,6 +5,7 @@ import { ChevronRight, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { RecruiterShell, useActiveJob } from "@/components/RecruiterShell";
 import { AddApplicationDialog } from "@/components/AddApplicationDialog";
+import { BulkCvDialog } from "@/components/BulkCvDialog";
 import { CandidateSheet } from "@/components/CandidateSheet";
 import { AnalysisPill, InterviewPill, RecommendationPill, ScoreBar } from "@/components/StatusBadges";
 import { Card } from "@/components/ui/card";
@@ -38,10 +39,11 @@ function Dashboard() {
     enabled: !!job,
     refetchInterval: (query) => (query.state.data?.some((a) => ["extracting", "analyzing"].includes(a.analysis_status)) ? 4000 : false),
     queryFn: async () => {
+      if (!job) return [];
       const { data, error } = await supabase
         .from("applications")
         .select("id, status, analysis_status, match_score, recommendation, created_at, candidates(full_name, email), interviews(status), cv_analyses(result, created_at)")
-        .eq("job_id", job!.id)
+        .eq("job_id", job.id)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data.map((a) => {
@@ -71,7 +73,7 @@ function Dashboard() {
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">{job.title}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{job.location} · {job.contract_type} · {apps.length} candidature{apps.length > 1 ? "s" : ""}</p>
         </div>
-        <AddApplicationDialog jobId={job.id} />
+        <div className="flex flex-wrap gap-2"><BulkCvDialog jobId={job.id} /><AddApplicationDialog jobId={job.id} /></div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -123,7 +125,7 @@ function Dashboard() {
                   <td className="max-w-[240px] px-4 py-3">
                     <div className="flex flex-wrap gap-1">
                       {(a.analysis?.skills ?? []).slice(0, 3).map((s) => <span key={s} className="rounded bg-muted px-1.5 py-0.5 text-xs">{s}</span>)}
-                      {(a.analysis?.skills.length ?? 0) > 3 && <span className="text-xs text-muted-foreground">+{a.analysis!.skills.length - 3}</span>}
+                      {(a.analysis?.skills.length ?? 0) > 3 && <span className="text-xs text-muted-foreground">+{(a.analysis?.skills.length ?? 0) - 3}</span>}
                       {!a.analysis && <span className="text-muted-foreground">—</span>}
                     </div>
                   </td>

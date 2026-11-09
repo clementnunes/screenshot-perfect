@@ -12,7 +12,7 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ANALYSIS_STEPS, DECISION_LABEL, type CvAnalysisResult, type InterviewSummary } from "@/lib/recruitment";
-import { eraseCandidate, recordDecision, regenerateCandidateLink, retryCvAnalysis, retryInterviewAnalysis, revokeCandidateLink } from "@/lib/recruitment.functions";
+import { eraseCandidate, recordDecision, regenerateCandidateLink, retryCvAnalysis, retryInterviewAnalysis, revokeCandidateLink, requestInterview } from "@/lib/recruitment.functions";
 import { CriterionPill, InterviewPill, RecommendationPill, ScoreBar } from "./StatusBadges";
 import { CandidateLinkBox } from "./AddApplicationDialog";
 import { cn } from "@/lib/utils";
@@ -72,13 +72,15 @@ export function CandidateSheet({ applicationId, onClose }: { applicationId: stri
   const regen = useServerFn(regenerateCandidateLink);
   const revoke = useServerFn(revokeCandidateLink);
   const erase = useServerFn(eraseCandidate);
+  const invite = useServerFn(requestInterview);
 
   const { data } = useQuery({
     queryKey: ["application", applicationId],
     enabled: !!applicationId,
-    refetchInterval: (q) => (["extracting", "analyzing"].includes(q.state.data?.app.analysis_status ?? "") ? 3000 : false),
+    refetchInterval: 5000,
     queryFn: async () => {
-      const id = applicationId!;
+      const id = applicationId;
+      if (!id) throw new Error("Candidature indisponible.");
       const { data: app, error } = await supabase.from("applications").select("*, candidates(*), jobs(title, rejection_template)").eq("id", id).single();
       if (error) throw error;
       const [analyses, interview, questions, decisions] = await Promise.all([
@@ -88,7 +90,9 @@ export function CandidateSheet({ applicationId, onClose }: { applicationId: stri
         supabase.from("recruitment_decisions").select("*").eq("application_id", id).order("created_at", { ascending: false }),
       ]);
       const cvUrl = app.cv_path ? (await supabase.storage.from("cvs").createSignedUrl(app.cv_path, 600)).data?.signedUrl ?? null : null;
-      return { app, analyses: analyses.data ?? [], interview: interview.data, questions: questions.data ?? [], decisions: decisions.data ?? [], cvUrl };
+      const allQuestions = questions.data ?? [];
+      const interviewQuestions = allQuestions.some((q) => q.application_id === id && q.kind === "common") ? allQuestions.filter((q) => q.application_id === id) : allQuestions;
+      return { app, analyses: analyses.data ?? [], interview: interview.data, questions: interviewQuestions, decisions: decisions.data ?? [], cvUrl };
     },
   });
 
@@ -117,7 +121,7 @@ export function CandidateSheet({ applicationId, onClose }: { applicationId: stri
   const answers = data?.interview?.interview_answers ?? [];
 
   return (
-    <Sheet open={!!applicationId} onOpenChange={(o) => !o && onClose()}>
+    <Sheet open={!!applicationId} onOpenChange={(o) => { if (!o) { setLink(null); onClose(); } }}>
       <SheetContent className="w-full overflow-y-auto p-0 sm:max-w-2xl">
         {!data ? (
           <div className="p-6 text-sm text-muted-foreground">Chargement…</div>
@@ -134,6 +138,7 @@ export function CandidateSheet({ applicationId, onClose }: { applicationId: stri
               </div>
               <div className="pt-4">
                 <Progress status={data.app.analysis_status} error={data.app.analysis_error} retrying={busy} onRetry={() => run(() => retry({ data: { applicationId: data.app.id } }))} />
+                {data.app.cv_path && data.app.analysis_status === "pending" && <Button className="mt-3" size="sm" variant="outline" disabled={busy} onClick={() => run(async () => { const r = await retry({ data: { applicationId: data.app.id } }); if (!r.ok) throw new Error(r.error); return r; })}><FileText /> Analyser le CV</Button>}
               </div>
             </SheetHeader>
 
@@ -205,7 +210,12 @@ export function CandidateSheet({ applicationId, onClose }: { applicationId: stri
             </Section>
 
             <Section n={7} title="Questions et réponses du pré-entretien">
-              {data.questions.length ? (
+              <div className="mb-4 flex flex-wrap items-center gap-3">
+                <InterviewPill status={data.interview?.status} />
+                <span className="text-xs text-muted-foreground">{answers.filter((a) => a.answer_text.trim()).length} / {data.interview ? data.questions.length : 6} réponses</span>
+                <Button size="sm" variant="outline" disabled={busy || !data.app.cv_path || data.app.status === "decided" || (!!data.interview && data.interview.status !== "not_started")} onClick={() => run(() => invite({ data: { applicationId: data.app.id, origin: window.location.origin } }), "Demande de pré-entretien transmise à n8n")}>Préparer et inviter via n8n</Button>
+              </div>
+              {data.interview && data.questions.length ? (
                 <ol className="space-y-3 text-sm">
                   {data.questions.map((q, i) => {
                     const a = answers.find((x) => x.question_id === q.id);
@@ -217,7 +227,7 @@ export function CandidateSheet({ applicationId, onClose }: { applicationId: stri
                     );
                   })}
                 </ol>
-              ) : <p className="text-sm text-muted-foreground">Les questions seront disponibles après l'analyse du CV.</p>}
+              ) : <p className="text-sm text-muted-foreground">En attente des questions et de l’invitation n8n.</p>}
             </Section>
 
             <Section n={8} title="Synthèse du pré-entretien">
@@ -260,7 +270,7 @@ export function CandidateSheet({ applicationId, onClose }: { applicationId: stri
                 <Textarea placeholder="Commentaire (facultatif)" value={comment} onChange={(e) => setComment(e.target.value)} maxLength={2000} />
                 <AlertDialogFooter>
                   <AlertDialogCancel>Annuler</AlertDialogCancel>
-                  <AlertDialogAction disabled={busy} onClick={() => { const d = pending!; run(() => decide({ data: { applicationId: data.app.id, decision: d, comment: comment || undefined, confirmed: true } }), "Décision enregistrée"); setComment(""); }}>
+                  <AlertDialogAction disabled={busy} onClick={() => { const d = pending; if (!d) return; run(() => decide({ data: { applicationId: data.app.id, decision: d, comment: comment || undefined, confirmed: true } }), "Décision enregistrée"); setComment(""); }}>
                     Confirmer la décision
                   </AlertDialogAction>
                 </AlertDialogFooter>
