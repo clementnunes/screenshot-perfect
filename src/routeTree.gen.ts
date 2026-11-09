@@ -10,33 +10,69 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ParametrageRouteImport } from './routes/parametrage'
+import { Route as CandidatTokenRouteImport } from './routes/candidat.$token'
+import { Route as ApiPublicWebhookNameRouteImport } from './routes/api/public/webhook/$name'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ParametrageRoute = ParametrageRouteImport.update({
+  id: '/parametrage',
+  path: '/parametrage',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CandidatTokenRoute = CandidatTokenRouteImport.update({
+  id: '/candidat/$token',
+  path: '/candidat/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicWebhookNameRoute = ApiPublicWebhookNameRouteImport.update({
+  id: '/api/public/webhook/$name',
+  path: '/api/public/webhook/$name',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/parametrage': typeof ParametrageRoute
+  '/candidat/$token': typeof CandidatTokenRoute
+  '/api/public/webhook/$name': typeof ApiPublicWebhookNameRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/parametrage': typeof ParametrageRoute
+  '/candidat/$token': typeof CandidatTokenRoute
+  '/api/public/webhook/$name': typeof ApiPublicWebhookNameRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/parametrage': typeof ParametrageRoute
+  '/candidat/$token': typeof CandidatTokenRoute
+  '/api/public/webhook/$name': typeof ApiPublicWebhookNameRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    '/' | '/parametrage' | '/candidat/$token' | '/api/public/webhook/$name'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/parametrage' | '/candidat/$token' | '/api/public/webhook/$name'
+  id:
+    | '__root__'
+    | '/'
+    | '/parametrage'
+    | '/candidat/$token'
+    | '/api/public/webhook/$name'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ParametrageRoute: typeof ParametrageRoute
+  CandidatTokenRoute: typeof CandidatTokenRoute
+  ApiPublicWebhookNameRoute: typeof ApiPublicWebhookNameRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +84,35 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/parametrage': {
+      id: '/parametrage'
+      path: '/parametrage'
+      fullPath: '/parametrage'
+      preLoaderRoute: typeof ParametrageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/candidat/$token': {
+      id: '/candidat/$token'
+      path: '/candidat/$token'
+      fullPath: '/candidat/$token'
+      preLoaderRoute: typeof CandidatTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/webhook/$name': {
+      id: '/api/public/webhook/$name'
+      path: '/api/public/webhook/$name'
+      fullPath: '/api/public/webhook/$name'
+      preLoaderRoute: typeof ApiPublicWebhookNameRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ParametrageRoute: ParametrageRoute,
+  CandidatTokenRoute: CandidatTokenRoute,
+  ApiPublicWebhookNameRoute: ApiPublicWebhookNameRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
