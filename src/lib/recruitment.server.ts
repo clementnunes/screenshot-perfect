@@ -11,7 +11,7 @@ export type { CvAnalysisPayload, CvAnalysisSource, CvCriterion, CvJobSnapshot } 
 import { extractInterviewSummary } from "./interview-summary";
 export { parseCvResult };
 
-export const CV_BULK_ANALYSIS_WEBHOOK_URL = "https://nmudhoo.n8n-wsk.com/webhook-test/a4da0844-bdf2-498c-ab39-181adaa00475";
+export const CV_BULK_ANALYSIS_WEBHOOK_URL = "https://nmudhoo.n8n-wsk.com/webhook/a4da0844-bdf2-498c-ab39-181adaa00475";
 export const INTERVIEW_SUMMARY_WEBHOOK_URL = "https://nmudhoo.n8n-wsk.com/webhook/ed7b87a7-9c58-44f3-8529-956fadf981ce";
 export const CV_ANALYSIS_WEBHOOK_URL = "https://nmudhoo.n8n-wsk.com/webhook/a4da0844-bdf2-498c-ab39-181adaa00474";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
@@ -454,4 +454,12 @@ export async function storeCv(applicationId: string, file: { name: string; base6
     .from("applications")
     .update({ cv_path: path, cv_filename: file.name, cv_pages: file.pages as never, cv_text: file.pages.join("\n\n"), analysis_status: "pending" })
     .eq("id", applicationId);
+}
+
+/** Newly imported CVs: one CV goes to the single-analysis webhook, several go together in ONE bulk request. */
+export async function analyzeImportedCvs(applicationIds: string[]) {
+  const ids = [...new Set(applicationIds)];
+  if (!ids.length) return { ok: true as const, analyzed: 0 };
+  if (ids.length === 1) { const r = await runCvAnalysis(ids[0]!, CV_ANALYSIS_WEBHOOK_URL); return { ...r, analyzed: 1 }; }
+  return runCvAnalysisBatch(ids, CV_BULK_ANALYSIS_WEBHOOK_URL);
 }

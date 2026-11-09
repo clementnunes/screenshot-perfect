@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as CandidatsRouteImport } from './routes/candidats'
 import { Route as EspaceCandidatRouteImport } from './routes/espace-candidat'
 import { Route as ParametrageRouteImport } from './routes/parametrage'
 import { Route as RendezVousRouteImport } from './routes/rendez-vous'
@@ -24,6 +25,11 @@ import { Route as ApiPublicWebhookNameRouteImport } from './routes/api/public/we
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CandidatsRoute = CandidatsRouteImport.update({
+  id: '/candidats',
+  path: '/candidats',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EspaceCandidatRoute = EspaceCandidatRouteImport.update({
@@ -82,6 +88,7 @@ const ApiPublicWebhookNameRoute = ApiPublicWebhookNameRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/candidats': typeof CandidatsRoute
   '/espace-candidat': typeof EspaceCandidatRoute
   '/parametrage': typeof ParametrageRoute
   '/rendez-vous': typeof RendezVousRoute
@@ -95,6 +102,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/candidats': typeof CandidatsRoute
   '/espace-candidat': typeof EspaceCandidatRoute
   '/parametrage': typeof ParametrageRoute
   '/rendez-vous': typeof RendezVousRoute
@@ -109,6 +117,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/candidats': typeof CandidatsRoute
   '/espace-candidat': typeof EspaceCandidatRoute
   '/parametrage': typeof ParametrageRoute
   '/rendez-vous': typeof RendezVousRoute
@@ -124,6 +133,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/candidats'
     | '/espace-candidat'
     | '/parametrage'
     | '/rendez-vous'
@@ -137,6 +147,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/candidats'
     | '/espace-candidat'
     | '/parametrage'
     | '/rendez-vous'
@@ -150,6 +161,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/candidats'
     | '/espace-candidat'
     | '/parametrage'
     | '/rendez-vous'
@@ -164,6 +176,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CandidatsRoute: typeof CandidatsRoute
   EspaceCandidatRoute: typeof EspaceCandidatRoute
   ParametrageRoute: typeof ParametrageRoute
   RendezVousRoute: typeof RendezVousRoute
@@ -183,6 +196,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/candidats': {
+      id: '/candidats'
+      path: '/candidats'
+      fullPath: '/candidats'
+      preLoaderRoute: typeof CandidatsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/espace-candidat': {
@@ -260,6 +280,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CandidatsRoute: CandidatsRoute,
   EspaceCandidatRoute: EspaceCandidatRoute,
   ParametrageRoute: ParametrageRoute,
   RendezVousRoute: RendezVousRoute,

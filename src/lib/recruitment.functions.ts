@@ -40,7 +40,7 @@ export const addApplication = createServerFn({ method: "POST" })
       await storeCv(applicationId, data.cv);
       if (data.analyze) await runCvAnalysis(applicationId);
     }
-    return { token: link.token, expiresAt: link.expiresAt, duplicate };
+    return { applicationId, token: link.token, expiresAt: link.expiresAt, duplicate };
   });
 
 export const regenerateCandidateLink = createServerFn({ method: "POST" })
@@ -84,6 +84,36 @@ export const retryCvAnalysis = createServerFn({ method: "POST" })
     await assertRecruiter(context.supabase as never);
     const { CV_BULK_ANALYSIS_WEBHOOK_URL, CV_ANALYSIS_WEBHOOK_URL } = await import("./recruitment.server");
     return runCvAnalysis(data.applicationId, data.bulk ? CV_BULK_ANALYSIS_WEBHOOK_URL : CV_ANALYSIS_WEBHOOK_URL);
+  });
+
+export const analyzeNewCvs = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ applicationIds: z.array(z.string().uuid()).min(1).max(50) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await assertRecruiter(context.supabase as never);
+    const { analyzeImportedCvs } = await import("./recruitment.server");
+    return analyzeImportedCvs(data.applicationIds);
+  });
+
+/** Public candidate home page (test phase, no account): imports CVs into the current job and starts their analysis. */
+export const submitCandidateCvs = createServerFn({ method: "POST" })
+  .inputValidator((d) =>
+    z.object({ cvs: z.array(z.object({ fullName: z.string().trim().min(2).max(120), email: z.string().trim().email().max(255), cv: cvInput })).min(1).max(10) }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: job } = await supabaseAdmin.from("jobs").select("id").order("created_at").limit(1).maybeSingle();
+    if (!job) throw new Error("Aucune offre ouverte pour le moment.");
+    const results: { email: string; duplicate: boolean }[] = [];
+    const toAnalyze: string[] = [];
+    for (const c of data.cvs) {
+      const { applicationId, duplicate } = await createApplication({ jobId: job.id, fullName: c.fullName, email: c.email, source: "candidate" });
+      if (!duplicate) { await storeCv(applicationId, c.cv); toAnalyze.push(applicationId); }
+      results.push({ email: c.email, duplicate });
+    }
+    const { analyzeImportedCvs } = await import("./recruitment.server");
+    if (toAnalyze.length) await analyzeImportedCvs(toAnalyze).catch(() => null);
+    return { results };
   });
 
 /** Bulk analysis: n8n gets one request whose body is the array of candidature objects. */
