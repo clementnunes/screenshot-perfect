@@ -100,6 +100,7 @@ export function CandidateSheet({ applicationId, onClose }: { applicationId: stri
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["application", applicationId] });
     qc.invalidateQueries({ queryKey: ["applications"] });
+    qc.invalidateQueries({ queryKey: ["meetings"] });
   };
 
   async function run<T>(fn: () => Promise<T>, ok?: string): Promise<T | undefined> {
@@ -281,11 +282,11 @@ export function CandidateSheet({ applicationId, onClose }: { applicationId: stri
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 {pending === "reject" && <p className="rounded-md bg-muted p-3 text-xs text-muted-foreground">{data.app.jobs.rejection_template}</p>}
-                <Textarea placeholder="Commentaire (facultatif)" value={comment} onChange={(e) => setComment(e.target.value)} maxLength={2000} />
+                <Textarea placeholder={pending === "invite_meeting" ? "Message d'invitation au candidat (date, lieu, modalités…)" : "Commentaire (facultatif)"} value={comment} onChange={(e) => setComment(e.target.value)} maxLength={2000} rows={pending === "invite_meeting" ? 6 : 3} />
                 <AlertDialogFooter>
                   <AlertDialogCancel>Annuler</AlertDialogCancel>
-                  <AlertDialogAction disabled={busy} onClick={() => { const d = pending; if (!d) return; run(() => decide({ data: { applicationId: data.app.id, decision: d, comment: comment || undefined, confirmed: true } }), "Décision enregistrée"); setComment(""); }}>
-                    Confirmer la décision
+                  <AlertDialogAction disabled={busy || (pending === "invite_meeting" && !comment.trim())} onClick={() => { const d = pending; if (!d) return; run(() => decide({ data: { applicationId: data.app.id, decision: d, comment: comment.trim() || undefined, confirmed: true } }), d === "invite_meeting" ? "Invitation envoyée" : "Décision enregistrée"); setComment(""); }}>
+                    {pending === "invite_meeting" ? "Envoyer l'invitation" : "Confirmer la décision"}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>

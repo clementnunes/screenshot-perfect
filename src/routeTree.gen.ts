@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as EspaceCandidatRouteImport } from './routes/espace-candidat'
 import { Route as ParametrageRouteImport } from './routes/parametrage'
+import { Route as RendezVousRouteImport } from './routes/rendez-vous'
 import { Route as CandidatTokenRouteImport } from './routes/candidat.$token'
 import { Route as EspaceCandidatAccueilRouteImport } from './routes/espace-candidat_.accueil'
 import { Route as EspaceCandidatConfirmationRouteImport } from './routes/espace-candidat_.confirmation'
@@ -33,6 +34,11 @@ const EspaceCandidatRoute = EspaceCandidatRouteImport.update({
 const ParametrageRoute = ParametrageRouteImport.update({
   id: '/parametrage',
   path: '/parametrage',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RendezVousRoute = RendezVousRouteImport.update({
+  id: '/rendez-vous',
+  path: '/rendez-vous',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CandidatTokenRoute = CandidatTokenRouteImport.update({
@@ -78,6 +84,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/espace-candidat': typeof EspaceCandidatRoute
   '/parametrage': typeof ParametrageRoute
+  '/rendez-vous': typeof RendezVousRoute
   '/candidat/$token': typeof CandidatTokenRoute
   '/espace-candidat/accueil': typeof EspaceCandidatAccueilRoute
   '/espace-candidat/confirmation': typeof EspaceCandidatConfirmationRoute
@@ -90,6 +97,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/espace-candidat': typeof EspaceCandidatRoute
   '/parametrage': typeof ParametrageRoute
+  '/rendez-vous': typeof RendezVousRoute
   '/candidat/$token': typeof CandidatTokenRoute
   '/espace-candidat/accueil': typeof EspaceCandidatAccueilRoute
   '/espace-candidat/confirmation': typeof EspaceCandidatConfirmationRoute
@@ -103,6 +111,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/espace-candidat': typeof EspaceCandidatRoute
   '/parametrage': typeof ParametrageRoute
+  '/rendez-vous': typeof RendezVousRoute
   '/candidat/$token': typeof CandidatTokenRoute
   '/espace-candidat_/accueil': typeof EspaceCandidatAccueilRoute
   '/espace-candidat_/confirmation': typeof EspaceCandidatConfirmationRoute
@@ -117,6 +126,7 @@ export interface FileRouteTypes {
     | '/'
     | '/espace-candidat'
     | '/parametrage'
+    | '/rendez-vous'
     | '/candidat/$token'
     | '/espace-candidat/accueil'
     | '/espace-candidat/confirmation'
@@ -129,6 +139,7 @@ export interface FileRouteTypes {
     | '/'
     | '/espace-candidat'
     | '/parametrage'
+    | '/rendez-vous'
     | '/candidat/$token'
     | '/espace-candidat/accueil'
     | '/espace-candidat/confirmation'
@@ -141,6 +152,7 @@ export interface FileRouteTypes {
     | '/'
     | '/espace-candidat'
     | '/parametrage'
+    | '/rendez-vous'
     | '/candidat/$token'
     | '/espace-candidat_/accueil'
     | '/espace-candidat_/confirmation'
@@ -154,6 +166,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   EspaceCandidatRoute: typeof EspaceCandidatRoute
   ParametrageRoute: typeof ParametrageRoute
+  RendezVousRoute: typeof RendezVousRoute
   CandidatTokenRoute: typeof CandidatTokenRoute
   EspaceCandidatAccueilRoute: typeof EspaceCandidatAccueilRoute
   EspaceCandidatConfirmationRoute: typeof EspaceCandidatConfirmationRoute
@@ -184,6 +197,13 @@ declare module '@tanstack/react-router' {
       path: '/parametrage'
       fullPath: '/parametrage'
       preLoaderRoute: typeof ParametrageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rendez-vous': {
+      id: '/rendez-vous'
+      path: '/rendez-vous'
+      fullPath: '/rendez-vous'
+      preLoaderRoute: typeof RendezVousRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/candidat/$token': {
@@ -242,6 +262,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   EspaceCandidatRoute: EspaceCandidatRoute,
   ParametrageRoute: ParametrageRoute,
+  RendezVousRoute: RendezVousRoute,
   CandidatTokenRoute: CandidatTokenRoute,
   EspaceCandidatAccueilRoute: EspaceCandidatAccueilRoute,
   EspaceCandidatConfirmationRoute: EspaceCandidatConfirmationRoute,

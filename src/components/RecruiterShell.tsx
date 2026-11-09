@@ -135,6 +135,9 @@ export function RecruiterShell({ children, subtitle }: { children: (ctx: { user:
             <Link to="/" className="rounded-md px-3 py-1.5 text-muted-foreground hover:text-foreground" activeProps={{ className: "bg-muted text-foreground font-medium" }} activeOptions={{ exact: true }}>
               Candidatures
             </Link>
+            <Link to="/rendez-vous" className="rounded-md px-3 py-1.5 text-muted-foreground hover:text-foreground" activeProps={{ className: "bg-muted text-foreground font-medium" }}>
+              Rendez-vous
+            </Link>
             <Link to="/parametrage" className="rounded-md px-3 py-1.5 text-muted-foreground hover:text-foreground" activeProps={{ className: "bg-muted text-foreground font-medium" }}>
               Paramétrage
             </Link>

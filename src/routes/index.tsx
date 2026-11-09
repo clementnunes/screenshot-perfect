@@ -184,8 +184,8 @@ function Dashboard() {
                   <td className="max-w-[220px] px-4 py-3 text-muted-foreground">{a.analysis?.experience_summary ?? "—"}</td>
                   <td className="max-w-[240px] px-4 py-3">
                     <div className="flex flex-wrap gap-1">
-                      {a.skills.slice(0, 3).map((s) => <span key={s} className="rounded bg-muted px-1.5 py-0.5 text-xs">{s}</span>)}
-                      {a.skills.length > 3 && <span className="text-xs text-muted-foreground">+{a.skills.length - 3}</span>}
+                      {a.skills.slice(0, 10).map((s) => <span key={s} className="rounded bg-muted px-1.5 py-0.5 text-xs">{s}</span>)}
+                      {a.skills.length > 10 && <span className="rounded-full border px-1.5 py-0.5 text-xs text-muted-foreground">+{a.skills.length - 10}</span>}
                       {!a.skills.length && <span className="text-muted-foreground">—</span>}
                     </div>
                   </td>
