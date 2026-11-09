@@ -161,13 +161,17 @@ const CATEGORY_LABEL: Record<string, string> = {
   competences_techniques: "Compétences techniques",
   competences_manageriales: "Compétences managériales",
   missions_et_responsabilites: "Missions et responsabilités",
+  missions_responsabilites: "Missions et responsabilités",
+  formation_qualifications: "Formation et qualifications",
   formation_et_qualifications: "Formation et qualifications",
 };
 
 /** Weighted score (0-100) from n8n category scores; recomputed by the app. */
 export function computeCategoryScore(categories: { score: number; weight: number }[]): number | null {
+  if (!categories.length) return null;
   const total = categories.reduce((s, c) => s + c.weight, 0);
-  if (!total) return null;
+  // n8n sent no weights: fall back to a plain average so the table still shows a match.
+  if (!total) return Math.round(categories.reduce((s, c) => s + c.score, 0) / categories.length);
   return Math.round(categories.reduce((s, c) => s + c.score * c.weight, 0) / total);
 }
 
@@ -181,17 +185,41 @@ export function levelToRecommendation(level: string): Recommendation {
 
 type Loose = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
+/** Normalises n8n keys: lowercase, no accents, underscores ("compétences managériales" -> "competences_manageriales"). */
+const normKey = (k: string) => k.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+function pick(o: Loose, ...names: string[]): Loose {
+  if (!o || typeof o !== "object") return undefined;
+  const wanted = names.map(normKey);
+  for (const [k, v] of Object.entries(o)) if (wanted.includes(normKey(k))) return v;
+  return undefined;
+}
+function toSkill(s: Loose): N8nSkill | null {
+  if (typeof s === "string") return s.trim() ? { competence: s.trim(), statut: "", justification: "" } : null;
+  const name = pick(s, "competence", "nom", "name", "skill", "libelle", "intitule");
+  if (!name) return null;
+  return { competence: String(name), statut: String(pick(s, "statut", "status", "niveau") ?? ""), justification: String(pick(s, "justification", "preuve", "evidence") ?? "") };
+}
+const SKILL_GROUPS: [string, string[]][] = [
+  ["Techniques", ["techniques", "competences_techniques", "technique"]],
+  ["Managériales", ["manageriales", "competences_manageriales", "manageriale", "management"]],
+  ["Transversales", ["transversales", "competences_transversales", "transversale", "soft_skills"]],
+];
+
 export function normalizeN8nAnalysis(n: Loose): CvAnalysisView {
   const full: Loose = n.analyse_complete ?? {};
   const reco: Loose = n.recommandation_ia ?? {};
   const fullReco: Loose = full.recommendation_ia ?? {};
-  const comp: Loose = full.competences_identifiees ?? {};
-  const groups = [["Techniques", comp.techniques], ["Managériales", comp.manageriales], ["Transversales", comp.transversales]] as const;
-  const skills = groups.map(([group, items]) => ({ group, items: ((items ?? []) as N8nSkill[]).filter((s) => s?.competence) }));
-  const corr: Loose = full.correspondance_pourcentage ?? {};
+  const comp: Loose = pick(full, "competences_identifiees", "competences") ?? pick(n, "competences_identifiees", "competences") ?? {};
+  const skills = Array.isArray(comp)
+    ? [{ group: "Compétences", items: comp.map(toSkill).filter((x): x is N8nSkill => !!x) }]
+    : SKILL_GROUPS.map(([group, keys]) => ({ group, items: ((pick(comp, ...keys) ?? []) as Loose[]).map(toSkill).filter((x): x is N8nSkill => !!x) }));
+  const corr: Loose = pick(full, "correspondance_pourcentage", "correspondance") ?? pick(n, "correspondance_pourcentage", "correspondance") ?? {};
   const categories: N8nCategory[] = Object.entries(corr)
-    .filter(([, v]) => v && typeof v === "object" && typeof (v as Loose).score === "number")
-    .map(([key, v]) => ({ key, label: CATEGORY_LABEL[key] ?? key.replace(/_/g, " "), score: (v as Loose).score, weight: Number((v as Loose).poids_percent) || 0, justification: String((v as Loose).justification ?? "") }));
+    .filter(([, v]) => v && typeof v === "object" && Number.isFinite(Number(pick(v, "score"))))
+    .map(([raw, v]) => {
+      const key = normKey(raw);
+      return { key, label: CATEGORY_LABEL[key] ?? CATEGORY_LABEL[key.replace(/_et_/g, "_")] ?? raw.replace(/_/g, " "), score: Number(pick(v, "score")), weight: Number(pick(v, "poids_percent", "poids", "weight", "ponderation")) || 0, justification: String(pick(v, "justification") ?? "") };
+    });
   const level = String(reco.niveau ?? fullReco.niveau ?? "");
   const synthese = String(reco.synthese ?? fullReco.justification_niveau_recommandation ?? "").split("\n")[0] ?? "";
   const missing: string[] = reco.informations_manquantes ?? fullReco.informations_manquantes ?? [];
@@ -219,4 +247,17 @@ export function normalizeN8nAnalysis(n: Loose): CvAnalysisView {
       interview_status: String(n.pre_entretien?.statut ?? full.pre_entretien?.decision ?? ""),
     },
   };
+}
+
+/** Skill names to show in the dashboard, preferring the detailed n8n groups. */
+export function analysisSkills(a: CvAnalysisView | undefined): string[] {
+  if (!a) return [];
+  const fromDetail = (a.detail?.skills ?? []).flatMap((g) => g.items.map((s) => s.competence)).filter(Boolean);
+  return fromDetail.length ? fromDetail : a.skills ?? [];
+}
+
+/** Match score to show: recomputed from n8n categories when available, else the stored score. */
+export function analysisScore(a: CvAnalysisView | undefined, stored: number | null): number | null {
+  const fromCategories = a?.detail ? computeCategoryScore(a.detail.categories) : null;
+  return fromCategories ?? stored;
 }

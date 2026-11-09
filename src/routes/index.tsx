@@ -20,7 +20,7 @@ import { AnalysisPill, InterviewPill, RecommendationPill, ScoreBar } from "@/com
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { FILTERS, matchesFilter, type CvAnalysisView, type DashboardFilter } from "@/lib/recruitment";
+import { FILTERS, analysisScore, analysisSkills, matchesFilter, type CvAnalysisView, type DashboardFilter } from "@/lib/recruitment";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
@@ -57,7 +57,7 @@ function Dashboard() {
       if (error) throw error;
       return data.map((a) => {
         const latest = [...(a.cv_analyses ?? [])].sort((x, y) => y.created_at.localeCompare(x.created_at))[0]?.result as CvAnalysisView | undefined;
-        return { ...a, analysis: latest, interviewStatus: a.interviews?.status };
+        return { ...a, analysis: latest, skills: analysisSkills(latest), match_score: analysisScore(latest, a.match_score), interviewStatus: a.interviews?.status };
       });
     },
   });
@@ -179,9 +179,9 @@ function Dashboard() {
                   <td className="max-w-[220px] px-4 py-3 text-muted-foreground">{a.analysis?.experience_summary ?? "—"}</td>
                   <td className="max-w-[240px] px-4 py-3">
                     <div className="flex flex-wrap gap-1">
-                      {(a.analysis?.skills ?? []).slice(0, 3).map((s) => <span key={s} className="rounded bg-muted px-1.5 py-0.5 text-xs">{s}</span>)}
-                      {(a.analysis?.skills.length ?? 0) > 3 && <span className="text-xs text-muted-foreground">+{(a.analysis?.skills.length ?? 0) - 3}</span>}
-                      {!a.analysis && <span className="text-muted-foreground">—</span>}
+                      {a.skills.slice(0, 3).map((s) => <span key={s} className="rounded bg-muted px-1.5 py-0.5 text-xs">{s}</span>)}
+                      {a.skills.length > 3 && <span className="text-xs text-muted-foreground">+{a.skills.length - 3}</span>}
+                      {!a.skills.length && <span className="text-muted-foreground">—</span>}
                     </div>
                   </td>
                   <td className="px-4 py-3"><ScoreBar score={a.match_score} /></td>

@@ -11,7 +11,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ANALYSIS_STEPS, DECISION_LABEL, type CvAnalysisView, type N8nDetail, type InterviewSummary } from "@/lib/recruitment";
+import { ANALYSIS_STEPS, analysisScore, DECISION_LABEL, type CvAnalysisView, type N8nDetail, type InterviewSummary } from "@/lib/recruitment";
 import { eraseCandidate, recordDecision, regenerateCandidateLink, retryCvAnalysis, retryInterviewAnalysis, revokeCandidateLink, requestInterview } from "@/lib/recruitment.functions";
 import { CriterionPill, InterviewPill, RecommendationPill, ScoreBar } from "./StatusBadges";
 import { CandidateLinkBox } from "./AddApplicationDialog";
@@ -132,7 +132,7 @@ export function CandidateSheet({ applicationId, onClose }: { applicationId: stri
               <SheetTitle className="text-xl">{data.app.candidates.full_name}</SheetTitle>
               <SheetDescription>{data.app.candidates.email} · {data.app.jobs.title} · reçue le {new Date(data.app.created_at).toLocaleDateString("fr-FR")}</SheetDescription>
               <div className="flex flex-wrap items-center gap-3 pt-3">
-                <ScoreBar score={data.app.match_score} />
+                <ScoreBar score={analysisScore(analysis, data.app.match_score)} />
                 <RecommendationPill value={data.app.recommendation} />
                 <InterviewPill status={data.interview?.status} />
               </div>
