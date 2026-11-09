@@ -4,7 +4,7 @@ import { z } from "zod";
 import { parseCvResult } from "./cv-contract";
 export { parseCvResult };
 
-export const CV_ANALYSIS_WEBHOOK_URL = "https://nmudhoo.n8n-wsk.com/webhook/a4da0844-bdf2-498c-ab39-181adaa00474";
+export const CV_ANALYSIS_WEBHOOK_URL = "https://nmudhoo.n8n-wsk.com/webhook-test/a4da0844-bdf2-498c-ab39-181adaa00474";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
   COMMON_QUESTION_COUNT,
