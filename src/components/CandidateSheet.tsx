@@ -11,7 +11,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ANALYSIS_STEPS, analysisScore, DECISION_LABEL, type CvAnalysisView, type N8nDetail, type InterviewSummary } from "@/lib/recruitment";
+import { ANALYSIS_STEPS, analysisScore, DECISION_LABEL, isSkillMentioned, type CvAnalysisView, type N8nDetail, type InterviewSummary } from "@/lib/recruitment";
 import { eraseCandidate, recordDecision, regenerateCandidateLink, retryCvAnalysis, retryInterviewAnalysis, revokeCandidateLink, requestInterview } from "@/lib/recruitment.functions";
 import { CriterionPill, InterviewPill, RecommendationPill, ScoreBar } from "./StatusBadges";
 import { CandidateLinkBox } from "./AddApplicationDialog";
@@ -329,7 +329,7 @@ function N8nSections({ analysis, detail, count }: { analysis: CvAnalysisView; de
 
       <Section n={5} title="Compétences identifiées">
         <div className="space-y-4">
-          {detail.skills.filter((g) => g.items.length).map((g) => (
+          {detail.skills.map((g) => ({ ...g, items: g.items.filter(isSkillMentioned) })).filter((g) => g.items.length).map((g) => (
             <div key={g.group}>
               <div className="mb-1.5 text-xs font-medium uppercase text-muted-foreground">{g.group}</div>
               <div className="overflow-hidden rounded-md border">

@@ -146,6 +146,8 @@ export interface N8nDetail {
   experiences: { intitule_poste?: string; entreprise?: string; periode?: string; duree_exploitable?: string; responsabilites?: string[]; lien_aux_missions_du_poste?: string }[];
   skills: { group: string; items: N8nSkill[] }[];
   categories: N8nCategory[];
+  /** Global match percentage sent by n8n (correspondance_pourcentage as a plain number). */
+  scoreGlobal?: number | null;
   limitations: string;
   level: string;
   strengths: string[];
@@ -193,11 +195,18 @@ function pick(o: Loose, ...names: string[]): Loose {
   for (const [k, v] of Object.entries(o)) if (wanted.includes(normKey(k))) return v;
   return undefined;
 }
+/** True when the skill is actually mentioned in the CV; "non mentionnée"/absent skills are hidden. */
+export function isSkillMentioned(s: N8nSkill): boolean {
+  const st = normKey(s.statut || "");
+  if (!st) return true;
+  return !st.includes("non_mentionnee") && !st.includes("absente") && !st.includes("non_presente") && !st.includes("non_demontree");
+}
 function toSkill(s: Loose): N8nSkill | null {
   if (typeof s === "string") return s.trim() ? { competence: s.trim(), statut: "", justification: "" } : null;
   const name = pick(s, "competence", "nom", "name", "skill", "libelle", "intitule");
   if (!name) return null;
-  return { competence: String(name), statut: String(pick(s, "statut", "status", "niveau") ?? ""), justification: String(pick(s, "justification", "preuve", "evidence") ?? "") };
+  const skill = { competence: String(name), statut: String(pick(s, "statut", "status", "niveau") ?? ""), justification: String(pick(s, "justification", "preuve", "evidence") ?? "") };
+  return isSkillMentioned(skill) ? skill : null;
 }
 const SKILL_GROUPS: [string, string[]][] = [
   ["Techniques", ["techniques", "competences_techniques", "technique"]],
@@ -214,7 +223,9 @@ export function normalizeN8nAnalysis(n: Loose): CvAnalysisView {
     ? [{ group: "Compétences", items: comp.map(toSkill).filter((x): x is N8nSkill => !!x) }]
     : SKILL_GROUPS.map(([group, keys]) => ({ group, items: ((pick(comp, ...keys) ?? []) as Loose[]).map(toSkill).filter((x): x is N8nSkill => !!x) }));
   const corr: Loose = pick(full, "correspondance_pourcentage", "correspondance") ?? pick(n, "correspondance_pourcentage", "correspondance") ?? {};
-  const categories: N8nCategory[] = Object.entries(corr)
+  // n8n may send a plain percentage (76) instead of per-category scores.
+  const scoreGlobal = Number.isFinite(Number(corr)) ? Math.round(Number(corr)) : null;
+  const categories: N8nCategory[] = Object.entries(scoreGlobal !== null ? {} : corr)
     .filter(([, v]) => v && typeof v === "object" && Number.isFinite(Number(pick(v, "score"))))
     .map(([raw, v]) => {
       const key = normKey(raw);
@@ -238,7 +249,8 @@ export function normalizeN8nAnalysis(n: Loose): CvAnalysisView {
       experiences: full.experience_professionnelle?.details ?? n.experience_professionnelle?.experiences ?? n.experience_professionnelle?.details ?? [],
       skills,
       categories,
-      limitations: String(corr.limitations_evaluation ?? ""),
+      scoreGlobal,
+      limitations: String((scoreGlobal !== null ? "" : corr.limitations_evaluation) ?? ""),
       level,
       strengths: reco.points_forts ?? fullReco.points_forts ?? [],
       gaps: reco.ecarts ?? fullReco.ecarts_par_rapport_a_la_fiche ?? [],
@@ -249,15 +261,16 @@ export function normalizeN8nAnalysis(n: Loose): CvAnalysisView {
   };
 }
 
-/** Skill names to show in the dashboard, preferring the detailed n8n groups. */
+/** Skill names to show in the dashboard, preferring the detailed n8n groups; non-mentioned skills are hidden. */
 export function analysisSkills(a: CvAnalysisView | undefined): string[] {
   if (!a) return [];
-  const fromDetail = (a.detail?.skills ?? []).flatMap((g) => g.items.map((s) => s.competence)).filter(Boolean);
+  const fromDetail = (a.detail?.skills ?? []).flatMap((g) => g.items.filter(isSkillMentioned).map((s) => s.competence)).filter(Boolean);
   return fromDetail.length ? fromDetail : a.skills ?? [];
 }
 
-/** Match score to show: recomputed from n8n categories when available, else the stored score. */
+/** Match score to show: n8n global percentage first, then category average, else the stored score. */
 export function analysisScore(a: CvAnalysisView | undefined, stored: number | null): number | null {
-  const fromCategories = a?.detail ? computeCategoryScore(a.detail.categories) : null;
-  return fromCategories ?? stored;
+  if (!a?.detail) return stored;
+  if (a.detail.scoreGlobal != null) return a.detail.scoreGlobal;
+  return computeCategoryScore(a.detail.categories) ?? stored;
 }

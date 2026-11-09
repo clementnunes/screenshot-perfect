@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync, existsSync } from "node:fs";
 import { parseCvResult } from "./cv-contract";
-import { analysisSkills, computeCategoryScore, levelToRecommendation, normalizeN8nAnalysis } from "./recruitment";
+import { analysisScore, analysisSkills, computeCategoryScore, levelToRecommendation, normalizeN8nAnalysis } from "./recruitment";
 
 describe("n8n CV analysis format", () => {
   it("averages category scores when n8n sends no weights", () => {
@@ -41,5 +41,21 @@ describe("n8n flat schema (v2)", () => {
   it("reads top-level skills array", () => {
     const r = parseCvResult({ success: true, competences_identifiees: [{ competence: "CACES", statut: "DEMONTREE" }], recommandation_ia: { niveau: "X" } });
     expect(r && analysisSkills(r)).toEqual(["CACES"]);
+  });
+  it("hides skills not mentioned in the CV", () => {
+    const r = normalizeN8nAnalysis({ analyse_complete: { competences_identifiees: {
+      techniques: [
+        { competence: "WMS", statut: "DEMONTREE" },
+        { competence: "SAP EWM", statut: "NON_MENTIONNEE" },
+        { competence: "Anglais", statut: "non mentionnée" },
+      ],
+    } } });
+    expect(analysisSkills(r)).toEqual(["WMS"]);
+  });
+  it("uses a numeric correspondance_pourcentage as the match score", () => {
+    const r = normalizeN8nAnalysis({ analyse_complete: { correspondance_pourcentage: 76 } });
+    expect(r.detail?.scoreGlobal).toBe(76);
+    expect(r.detail?.categories).toHaveLength(0);
+    expect(analysisScore(r, null)).toBe(76);
   });
 });

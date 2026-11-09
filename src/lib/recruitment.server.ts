@@ -192,7 +192,7 @@ export async function saveCvAnalysis(applicationId: string, result: CvAnalysisVi
   if (error || !app) throw new Error("Candidature introuvable");
   const { data: criteria } = await supabaseAdmin.from("job_criteria").select("*").eq("job_id", app.job_id).order("position");
   try {
-    const score = (result.detail ? computeCategoryScore(result.detail.categories) : null) ?? computeMatchScore(criteria ?? [], result.criteria_analysis);
+    const score = (result.detail?.scoreGlobal ?? (result.detail ? computeCategoryScore(result.detail.categories) : null)) ?? computeMatchScore(criteria ?? [], result.criteria_analysis);
 
     await supabaseAdmin.from("cv_analyses").insert({
       application_id: applicationId,
