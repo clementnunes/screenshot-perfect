@@ -37,6 +37,15 @@ const SUMMARY_PATHS: string[][] = [
 const WRAPPERS = ["result", "data", "output", "json", "body", "output_json"];
 
 function unwrap(payload: unknown): Json[] {
+  // n8n "all items" responses are arrays; some nodes return JSON as a string.
+  if (typeof payload === "string") {
+    try {
+      return unwrap(JSON.parse(payload));
+    } catch {
+      return [];
+    }
+  }
+  if (Array.isArray(payload)) return payload.flatMap((p) => unwrap(p));
   const root = asRecord(payload);
   if (!root) return [];
   const out: Json[] = [root];

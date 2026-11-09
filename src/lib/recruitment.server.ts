@@ -79,7 +79,7 @@ export async function sendInterviewForSummary(
   const iv = Array.isArray(app?.interviews) ? app?.interviews[0] : app?.interviews;
   if (!app || !iv) throw new Error("Aucun pré-entretien pour ce candidat.");
   // Only a finished pre-interview has a final synthesis to wait for.
-  const finished = iv.status === "completed";
+  const finished = iv.status === "completed" && event === "interview_submitted";
   if (finished) await supabaseAdmin.from("interviews").update({ analysis_status: "analyzing" }).eq("id", iv.id);
   const [{ data: questions }, { data: answers }] = await Promise.all([
     supabaseAdmin.from("interview_questions").select("id, question, kind, position").eq("application_id", applicationId).order("position"),
@@ -115,7 +115,7 @@ export async function sendInterviewForSummary(
       returned = null;
     }
     const summary = extractInterviewSummary(returned);
-    await audit("n8n", res.ok ? "interview_summary_sent" : "interview_summary_failed", "application", applicationId, { status: res.status });
+    await audit("n8n", res.ok ? "interview_summary_sent" : "interview_summary_failed", "application", applicationId, { status: res.status, extracted: !!summary, response: text.slice(0, 500) });
     if (summary && finished) {
       await supabaseAdmin.from("interviews").update({ summary: summary as never, analysis_status: "done" }).eq("id", iv.id);
       if (app.status !== "decided") await supabaseAdmin.from("applications").update({ status: "to_review" }).eq("id", applicationId).neq("status", "decided");

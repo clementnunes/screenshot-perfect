@@ -63,3 +63,11 @@ describe("isSummaryGenerating", () => {
     expect(isSummaryGenerating(undefined, undefined, now)).toBe(false);
   });
 });
+
+import { describe as d2, it as i2, expect as e2 } from "vitest";
+import { extractInterviewSummary as ex2 } from "./interview-summary";
+d2("n8n array responses", () => {
+  i2("reads resume from an array of items", () => {
+    e2(ex2([{ resume: "Texte" }])?.summary).toBe("Texte");
+  });
+});
