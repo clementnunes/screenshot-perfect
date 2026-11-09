@@ -226,7 +226,7 @@ export function normalizeN8nAnalysis(n: Loose): CvAnalysisView {
   const questions: string[] = n.pre_entretien?.questions ?? full.pre_entretien?.questions ?? [];
   return {
     candidate_summary: synthese,
-    experience_summary: String(full.experience_professionnelle?.synthese ?? n.experience_professionnelle ?? "").split("\n")[0] ?? "",
+    experience_summary: String(full.experience_professionnelle?.synthese ?? n.experience_professionnelle?.synthese ?? (typeof n.experience_professionnelle === "string" ? n.experience_professionnelle : "")).split("\n")[0] ?? "",
     skills: skills.flatMap((g) => g.items.map((s) => s.competence)),
     criteria_analysis: [],
     missing_information: missing,
@@ -235,7 +235,7 @@ export function normalizeN8nAnalysis(n: Loose): CvAnalysisView {
     interview_summary: null,
     confidence: 1,
     detail: {
-      experiences: full.experience_professionnelle?.details ?? [],
+      experiences: full.experience_professionnelle?.details ?? n.experience_professionnelle?.experiences ?? n.experience_professionnelle?.details ?? [],
       skills,
       categories,
       limitations: String(corr.limitations_evaluation ?? ""),

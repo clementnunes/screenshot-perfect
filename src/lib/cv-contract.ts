@@ -29,8 +29,9 @@ const category = z.object({ score: z.number(), poids_percent: z.number(), score_
 
 export const n8nCvParser = z.object({
   success: z.boolean().optional(),
-  experience_professionnelle: str,
-  correspondance_pourcentage: z.number().optional(),
+  experience_professionnelle: z.unknown().optional(),
+  correspondance_pourcentage: z.unknown().optional(),
+  competences_identifiees: z.unknown().optional(),
   pre_entretien: z.object({ statut: str, questions: strArr }).partial().optional(),
   recommandation_ia: z.object({ niveau: str, synthese: str, points_forts: strArr, ecarts: strArr, informations_manquantes: strArr, points_a_verifier: strArr }).partial().optional(),
   analyse_complete: z.object({

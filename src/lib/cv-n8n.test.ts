@@ -29,3 +29,17 @@ describe("n8n CV analysis format", () => {
     expect(r?.detail?.skills.find((g) => g.group === "Techniques")?.items.length).toBe(6);
   });
 });
+
+describe("n8n flat schema (v2)", () => {
+  const f2 = "/mnt/user-uploads/success_experience_professionnelle_pasted-2.json";
+  it.runIf(existsSync(f2))("parses top-level experience object and null correspondance", () => {
+    const r = parseCvResult(JSON.parse(readFileSync(f2, "utf8")));
+    expect(r?.experience_summary).toBe("Informations professionnelles non disponibles.");
+    expect(r?.missing_information).toHaveLength(5);
+    expect(r?.interview_recommendation).toBe("verify");
+  });
+  it("reads top-level skills array", () => {
+    const r = parseCvResult({ success: true, competences_identifiees: [{ competence: "CACES", statut: "DEMONTREE" }], recommandation_ia: { niveau: "X" } });
+    expect(r && analysisSkills(r)).toEqual(["CACES"]);
+  });
+});
