@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
@@ -164,111 +164,6 @@ function StepA({ token, s }: { token: string; s: Session }) {
 type SpeechRec = { lang: string; continuous: boolean; interimResults: boolean; start: () => void; stop: () => void; onresult: (e: { resultIndex: number; results: ArrayLike<{ 0: { transcript: string }; isFinal: boolean }> }) => void; onend: () => void };
 
 function StepB({ token, s }: { token: string; s: Session }) {
-  const qc = useQueryClient();
-  const save = useServerFn(saveCandidateAnswer);
-  const complete = useServerFn(completeCandidateInterview);
-  const iv = s.interview;
-  const questions = iv?.questions ?? [];
-  const [index, setIndex] = useState(Math.min(iv?.currentIndex ?? 0, Math.max(questions.length - 1, 0)));
-  const [answers, setAnswers] = useState<Record<string, { text: string; mode: "text" | "voice" }>>(() =>
-    Object.fromEntries((iv?.answers ?? []).map((a) => [a.question_id, { text: a.answer_text, mode: a.input_mode as "text" | "voice" }])),
-  );
-  const [savedAt, setSavedAt] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [listening, setListening] = useState(false);
-  const recRef = useRef<SpeechRec | null>(null);
-  const [voiceSupported, setVoiceSupported] = useState(false);
-  useEffect(() => { setVoiceSupported(!!((window as never as Record<string, unknown>)["SpeechRecognition"] || (window as never as Record<string, unknown>)["webkitSpeechRecognition"])); }, []);
-
-  const q = questions[index];
-  const current = q ? answers[q.id] ?? { text: "", mode: "text" as const } : null;
-
-  // Autosave (debounced); cancelled when the candidate moves on explicitly.
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => {
-    if (!q || !current || !current.text.trim()) return;
-    const t = setTimeout(() => {
-      save({ data: { token, questionId: q.id, text: current.text, mode: current.mode, nextIndex: index } })
-        .then((r) => setSavedAt(r.savedAt))
-        .catch((error) => { setSavedAt(null); toast.error(error instanceof Error ? error.message : "Sauvegarde indisponible"); });
-    }, 900);
-    timer.current = t;
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current?.text, q?.id]);
-
-  if (!iv || questions.length < 6 || !q || !current) {
-    return (
-      <Card className="p-8 text-center shadow-card">
-        <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-muted border-t-primary" />
-        <h1 className="mt-4 text-lg font-semibold">Préparation de votre pré-entretien</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Votre CV a bien été reçu. Vous recevrez une invitation lorsque votre pré-entretien sera prêt.
-        </p>
-      </Card>
-    );
-  }
-
-  const setText = (text: string, mode: "text" | "voice" = current.mode) => setAnswers({ ...answers, [q.id]: { text, mode } });
-
-  function toggleVoice() {
-    if (!current) return;
-    if (listening) { recRef.current?.stop(); return; }
-    const W = window as never as Record<string, new () => SpeechRec>;
-    const Ctor = W["SpeechRecognition"] || W["webkitSpeechRecognition"];
-    if (!Ctor) return;
-    const rec = new Ctor();
-    rec.lang = "fr-FR"; rec.continuous = true; rec.interimResults = false;
-    const base = current.text;
-    let acc = "";
-    rec.onresult = (e) => {
-      for (let i = e.resultIndex; i < e.results.length; i++) { const r = e.results[i]; if (r?.isFinal) acc += r[0].transcript + " "; }
-      setText((base ? base + " " : "") + acc.trim(), "voice");
-    };
-    rec.onend = () => setListening(false);
-    recRef.current = rec; rec.start(); setListening(true);
-  }
-
-  async function next() {
-    if (!current || !q) return;
-    if (!current.text.trim()) { toast.error("Merci de saisir une réponse."); return; }
-    if (timer.current) clearTimeout(timer.current);
-    setBusy(true);
-    try {
-      const isLast = index === questions.length - 1;
-      await save({ data: { token, questionId: q.id, text: current.text, mode: current.mode, nextIndex: isLast ? index : index + 1 } });
-      if (isLast) {
-        await complete({ data: { token } });
-        qc.invalidateQueries({ queryKey: ["candidate", token] });
-      } else setIndex(index + 1);
-    } catch (err) { toast.error(err instanceof Error ? err.message : "Erreur"); }
-    finally { setBusy(false); }
-  }
-
-  const isLast = index === questions.length - 1;
-  return (
-    <div className="space-y-5">
-      <div>
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>Question {index + 1} sur {questions.length}</span>
-          <span>{savedAt ? `Enregistré à ${new Date(savedAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}` : "Sauvegarde automatique"}</span>
-        </div>
-        <Progress value={((index + 1) / questions.length) * 100} className="mt-2 h-1.5" />
-      </div>
-      <Card className="p-6 shadow-card">
-        <h1 className="text-lg font-semibold leading-snug">{q.question}</h1>
-        <Textarea className="mt-4 min-h-48" placeholder="Votre réponse…" value={current.text} maxLength={5000} onChange={(e) => setText(e.target.value)} />
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-          {voiceSupported ? (
-            <Button type="button" variant="outline" size="sm" onClick={toggleVoice}>{listening ? <><MicOff /> Arrêter la dictée</> : <><Mic /> Répondre à voix haute (facultatif)</>}</Button>
-          ) : <span className="text-xs text-muted-foreground">La dictée vocale n'est pas disponible sur ce navigateur.</span>}
-          <div className="flex gap-2">
-            {index > 0 && <Button variant="ghost" onClick={() => setIndex(index - 1)} disabled={busy}>Précédent</Button>}
-            <Button onClick={next} disabled={busy}>{busy ? "Envoi…" : isLast ? "Valider mes réponses" : "Suivant"}</Button>
-          </div>
-        </div>
-        <p className="mt-4 text-xs text-muted-foreground">La dictée est transcrite en texte ; seul le contenu de vos réponses est pris en compte, jamais votre voix.</p>
-      </Card>
-    </div>
-  );
+  const navigate = useNavigate();
+  return <div className="space-y-5"><h1 className="text-2xl font-semibold">Votre pré-entretien</h1><p className="text-muted-foreground">Accédez à votre questionnaire avec le lien sécurisé reçu par e-mail.</p><Button onClick={() => navigate({ to: "/espace-candidat" })}>Accéder à mon espace candidat</Button></div>;
 }

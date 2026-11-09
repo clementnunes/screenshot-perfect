@@ -9,7 +9,6 @@ import {
   issueCandidateLink,
   notify,
   runCvAnalysis,
-  runInterviewAnalysis,
   storeCv,
 } from "./recruitment.server";
 
@@ -61,6 +60,9 @@ export const requestInterview = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ applicationId: z.string().uuid(), origin: z.string().url() }).parse(d))
   .handler(async ({ data, context }) => {
     await assertRecruiter(context.supabase as never);
+    const { getRequest } = await import("@tanstack/react-start/server");
+    const origin = getRequest().headers.get("origin");
+    if (!origin || new URL(data.origin).origin !== origin) throw new Error("Origine d’invitation invalide.");
     const { requestN8nInterview } = await import("./recruitment.server");
     return requestN8nInterview(data.applicationId, data.origin);
   });
@@ -88,7 +90,8 @@ export const retryInterviewAnalysis = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ applicationId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     await assertRecruiter(context.supabase as never);
-    return runInterviewAnalysis(data.applicationId);
+    await notify("interview_summary_requested", data.applicationId, {}, true);
+    return { ok: true };
   });
 
 export const recordDecision = createServerFn({ method: "POST" })
@@ -184,6 +187,7 @@ export const getCandidateSession = createServerFn({ method: "POST" })
         ? {
             status: interview.status,
             currentIndex: interview.current_index,
+            submittedAt: interview.completed_at,
             questions: questions.map((q) => ({ id: q.id, question: q.question, kind: q.kind })),
             answers: answers ?? [],
           }
@@ -218,39 +222,14 @@ export const uploadCandidateCv = createServerFn({ method: "POST" })
 
 export const saveCandidateAnswer = createServerFn({ method: "POST" })
   .inputValidator((d) =>
-    tokenInput.extend({ questionId: z.string().uuid(), text: z.string().max(5000), mode: z.enum(["text", "voice"]), nextIndex: z.number().int().min(0).max(5) }).parse(d),
+    tokenInput.extend({ questionId: z.string().uuid(), text: z.string().max(5000), mode: z.enum(["text", "voice"]), nextIndex: z.number().int().min(0).max(10000) }).parse(d),
   )
   .handler(async ({ data }) => {
-    const app = await requireApp(data.token);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: interview } = await supabaseAdmin.from("interviews").select("*").eq("application_id", app.id).single();
-    if (!interview) throw new Error("Pré-entretien indisponible.");
-    if (!app.identity_confirmed_at) throw new Error("Veuillez confirmer votre identité.");
-    if (interview.status === "completed") throw new Error("Le pré-entretien est déjà terminé.");
-    const questions = await getInterviewQuestions(app.job_id, app.id);
-    if (!questions.some((q) => q.id === data.questionId)) throw new Error("Question inconnue.");
-    await notify("interview_answer", app.id, { question_id: data.questionId, answer_text: data.text, input_mode: data.mode, next_index: data.nextIndex }, true);
-    const { data: saved } = await supabaseAdmin.from("interview_answers").select("answer_text").eq("interview_id", interview.id).eq("question_id", data.questionId).maybeSingle();
-    if (saved?.answer_text !== data.text) throw new Error("n8n n’a pas encore confirmé la sauvegarde. Réessayez dans un instant.");
-    return { ok: true, savedAt: new Date().toISOString() };
+    throw new Error("Connectez-vous au portail candidat avec le lien reçu par e-mail.");
   });
 
 export const completeCandidateInterview = createServerFn({ method: "POST" })
   .inputValidator((d) => tokenInput.parse(d))
   .handler(async ({ data }) => {
-    const app = await requireApp(data.token);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: interview } = await supabaseAdmin.from("interviews").select("*").eq("application_id", app.id).single();
-    if (!interview) throw new Error("Pré-entretien indisponible.");
-    if (!app.identity_confirmed_at) throw new Error("Veuillez confirmer votre identité.");
-    if (interview.status !== "completed") {
-      const questions = await getInterviewQuestions(app.job_id, app.id);
-      const { data: answers } = await supabaseAdmin.from("interview_answers").select("question_id, answer_text").eq("interview_id", interview.id);
-      const missing = questions.filter((q) => !answers?.find((a) => a.question_id === q.id && a.answer_text.trim()));
-      if (questions.length !== 6 || missing.length) throw new Error("Merci de répondre à toutes les questions avant de valider.");
-      await notify("interview_submit", app.id, { job_title: app.jobs.title }, true);
-      const { data: saved } = await supabaseAdmin.from("interviews").select("status").eq("id", interview.id).single();
-      if (saved?.status !== "completed") throw new Error("n8n n’a pas encore confirmé la réception de vos réponses.");
-    }
-    return { ok: true };
+    throw new Error("Connectez-vous au portail candidat avec le lien reçu par e-mail.");
   });

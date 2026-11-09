@@ -1,16 +1,16 @@
 // Server-only recruitment workflows (CV analysis, interview analysis, tokens, notifications).
 import { generateResponse } from "@lovable.dev/ai-gateway";
 import { z } from "zod";
+import { readSecret } from "./runtime-env";
+import { prepareExistingQuestions, provisionInvitedAccount } from "./candidate-portal.server";
 import { parseCvResult } from "./cv-contract";
 export { parseCvResult };
 
 export const CV_ANALYSIS_WEBHOOK_URL = "https://nmudhoo.n8n-wsk.com/webhook-test/a4da0844-bdf2-498c-ab39-181adaa00474";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
-  COMMON_QUESTION_COUNT,
   computeMatchScore,
   computeCategoryScore,
-  PERSONALIZED_QUESTION_COUNT,
   type CvAnalysisView,
   type InterviewSummary,
 } from "./recruitment";
@@ -63,7 +63,7 @@ export async function audit(actor: string, action: string, entity: string, entit
 
 /** Records a notification and forwards it to n8n when an outbound URL is configured. */
 export async function notify(type: string, applicationId: string | null, payload: Record<string, unknown>, required = false) {
-  const url = process.env["N8N_OUTBOUND_URL"];
+  const url = readSecret("N8N_OUTBOUND_URL");
   if (!url && required) throw new Error("Le workflow n8n n’est pas encore connecté.");
   const { data } = await supabaseAdmin
     .from("notifications")
@@ -76,7 +76,7 @@ export async function notify(type: string, applicationId: string | null, payload
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-webhook-secret": process.env["N8N_WEBHOOK_SECRET"] ?? "",
+        "x-webhook-secret": readSecret("N8N_WEBHOOK_SECRET") ?? "",
         "idempotency-key": data?.id ?? crypto.randomUUID(),
       },
       body: JSON.stringify({ type, application_id: applicationId, ...payload }),
@@ -90,18 +90,20 @@ export async function notify(type: string, applicationId: string | null, payload
 }
 
 export async function requestN8nInterview(applicationId: string, origin: string) {
-  if (!process.env["N8N_OUTBOUND_URL"]) throw new Error("Le workflow n8n n’est pas encore connecté.");
+  if (!readSecret("N8N_OUTBOUND_URL")) throw new Error("Le workflow n8n n’est pas encore connecté.");
   const { data: app, error } = await supabaseAdmin.from("applications").select("*, candidates(full_name, email), jobs(*)").eq("id", applicationId).single();
   if (error || !app) throw new Error("Candidature introuvable.");
-  const { data: iv } = await supabaseAdmin.from("interviews").select("status").eq("application_id", applicationId).maybeSingle();
-  if (iv && iv.status !== "not_started") throw new Error("Ce pré-entretien a déjà commencé.");
+  const { data: iv } = await supabaseAdmin.from("interviews").select("status,invited_at").eq("application_id", applicationId).maybeSingle();
+  if (iv?.status === "completed") throw new Error("Ce pré-entretien a déjà été soumis.");
   if (app.status === "decided") throw new Error("Une décision a déjà été prise.");
   if (!app.cv_path) throw new Error("Un CV est nécessaire.");
-  const { data: templates } = await supabaseAdmin.from("interview_questions").select("question, kind, position").eq("job_id", app.job_id).is("application_id", null).order("position");
+  await prepareExistingQuestions(applicationId, app.job_id);
+  await provisionInvitedAccount(app.candidates.email);
   const link = await issueCandidateLink(applicationId, app.jobs.link_validity_days);
+  const questions = await getInterviewQuestions(app.job_id, applicationId);
   await notify("interview_requested", applicationId, {
-    candidate: app.candidates, job: app.jobs, cv_pages: app.cv_pages,
-    question_templates: templates ?? [], candidate_url: `${new URL(origin).origin}/candidat/${link.token}`, expires_at: link.expiresAt,
+    candidate: app.candidates, job: app.jobs,
+    questions, candidate_url: `${new URL(origin).origin}/espace-candidat`, expires_at: link.expiresAt,
   }, true);
   return { ok: true };
 }
@@ -162,7 +164,7 @@ export async function runCvAnalysis(applicationId: string) {
     // CV analysis is delegated to n8n; it answers through the "cv-analysis-result" callback.
     const res = await fetch(CV_ANALYSIS_WEBHOOK_URL, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-webhook-secret": process.env["N8N_WEBHOOK_SECRET"] ?? "", "idempotency-key": crypto.randomUUID() },
+      headers: { "content-type": "application/json", "x-webhook-secret": readSecret("N8N_WEBHOOK_SECRET") ?? "", "idempotency-key": crypto.randomUUID() },
       body: JSON.stringify({
         type: "cv_analysis_requested",
         application_id: applicationId,
@@ -291,8 +293,8 @@ export async function getInterviewQuestions(jobId: string, applicationId: string
   if (error) throw new Error(error.message);
   if (snapshot?.some((q) => q.kind === "common")) return snapshot;
   const [{ data: common }, { data: personal }] = await Promise.all([
-    supabaseAdmin.from("interview_questions").select("id, question, kind, position").eq("job_id", jobId).is("application_id", null).eq("kind", "common").order("position").limit(COMMON_QUESTION_COUNT),
-    supabaseAdmin.from("interview_questions").select("id, question, kind, position").eq("application_id", applicationId).order("position").limit(PERSONALIZED_QUESTION_COUNT),
+    supabaseAdmin.from("interview_questions").select("id, question, kind, position").eq("job_id", jobId).is("application_id", null).eq("kind", "common").order("position"),
+    supabaseAdmin.from("interview_questions").select("id, question, kind, position").eq("application_id", applicationId).order("position"),
   ]);
   return [...(common ?? []), ...(personal ?? [])];
 }

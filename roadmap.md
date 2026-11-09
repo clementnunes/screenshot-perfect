@@ -6,4 +6,9 @@
 - [x] Vérifier la validation du retour n8n (12 tests réussis) et l’import connecté : erreur 404 visible, fiche conservée, aucune erreur de page.
 - [x] Remettre l’URL de test n8n fournie pour la lecture et le découpage des fiches de poste.
 - [ ] Vérifier un découpage réel réussi (en attente d’un fichier de fiche de poste et du workflow de test en écoute).
+- [x] Ajouter les pages candidat distinctes et l’accès par e-mail sur invitation active.
+- [x] Réutiliser toutes les questions existantes, sauvegarder les réponses et ajouter la vérification avant soumission.
+- [x] Ajouter le suivi des dates recruteur et les points d’intégration n8n de soumission/synthèse.
+- [x] Vérifier les règles de sécurité par 22 tests et l’affichage mobile sans débordement.
+- [ ] Vérifier le parcours candidat complet : invitation n8n non connectée ; chargement interactif localhost bloqué par le préambule React de l’aperçu.
 - [x] Exposer les huit sections de la fiche de poste à n8n via un endpoint public protégé par le mot de passe partagé.

@@ -30,7 +30,7 @@ use the editor.
 <!-- LOVABLE:END -->
 
 ## Project rules (Orvane Recrutement)
-- Exactly three pages: `/` (recruiter dashboard), `/parametrage`, `/candidat/$token`; candidate details are a side sheet, login is inline in `RecruiterShell` — keep it that way, the brief forbids extra pages.
+- Recruiter pages remain `/` and `/parametrage`, with inline login and candidate side sheets; candidate access, overview, questionnaire, review and confirmation use separate `/espace-candidat` routes. The legacy token URL stays available for CV collection.
 - Recruiters read/write via the browser client under RLS (`is_recruiter()`); candidates never touch tables directly — all candidate access goes through token-checked server functions in `src/lib/recruitment.functions.ts`.
 - Candidate links: random token, only its SHA-256 hash is stored, with expiry + revocation; never put internal ids in public URLs.
 - CV analysis is delegated to n8n (`cv_analysis_requested` event → `cv-analysis-result` callback); the app only computes the weighted score, keeping one owner for CV inference.
@@ -38,6 +38,7 @@ use the editor.
 - n8n endpoints: `POST /api/public/webhook/<name>` authenticated by `x-webhook-secret` (or `Authorization: Bearer`) = `N8N_WEBHOOK_SECRET`, read via `readSecret` (Worker `env` first, since online `process.env` may lack it), deduped by `idempotency-key`; outbound events go to optional `N8N_OUTBOUND_URL`.
 - Scoring/filter rules are pure functions in `src/lib/recruitment.ts` with tests next to them.
 - Bulk CV import stores files sequentially without AI fan-out; CVs are analysed only through an explicit recruiter action (single or selected rows), sent to n8n one at a time to avoid uncontrolled batch inference.
-- Interview questions are application-scoped snapshots received from n8n; candidate answers and completion are forwarded to n8n and acknowledged only after its authenticated callbacks persist them, keeping n8n in charge of the interview lifecycle.
+- Interview questions snapshot all saved common and CV-analysis questions without generation or duplicates; atomic service-role-only RPCs save and submit authenticated candidate answers, preventing submission/edit races. n8n owns invitation delivery and post-submission summaries.
+- Candidate Cloud Auth accounts never receive recruiter roles automatically; every portal operation validates the authenticated email against an active, non-revoked invitation. Candidate tables remain inaccessible through RLS.
 - Job-description files are forwarded as multipart `file` through a recruiter-checked server function to the fixed public n8n webhook; validate all eight returned sections before filling the editable form, and persist only on explicit save to prevent partial or unreviewed replacements.
 - n8n reads the saved job description from `GET /api/public/job-description` (same `x-webhook-secret` check as the other n8n endpoints); that handler selects only the eight section columns, so email templates and other job settings never leave the app.

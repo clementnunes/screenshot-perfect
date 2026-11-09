@@ -294,6 +294,7 @@ export type Database = {
           created_at: string
           current_index: number
           id: string
+          invited_at: string | null
           started_at: string | null
           status: string
           summary: Json | null
@@ -306,6 +307,7 @@ export type Database = {
           created_at?: string
           current_index?: number
           id?: string
+          invited_at?: string | null
           started_at?: string | null
           status?: string
           summary?: Json | null
@@ -318,6 +320,7 @@ export type Database = {
           created_at?: string
           current_index?: number
           id?: string
+          invited_at?: string | null
           started_at?: string | null
           status?: string
           summary?: Json | null
@@ -535,6 +538,23 @@ export type Database = {
         Returns: boolean
       }
       is_recruiter: { Args: never; Returns: boolean }
+      prepare_portal_interview: {
+        Args: { p_application: string; p_questions: Json }
+        Returns: string
+      }
+      save_portal_answer: {
+        Args: {
+          p_application: string
+          p_index: number
+          p_question: string
+          p_text: string
+        }
+        Returns: string
+      }
+      submit_portal_interview: {
+        Args: { p_application: string }
+        Returns: string
+      }
     }
     Enums: {
       app_role: "admin" | "recruiter"

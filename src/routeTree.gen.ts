@@ -10,14 +10,24 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as EspaceCandidatRouteImport } from './routes/espace-candidat'
 import { Route as ParametrageRouteImport } from './routes/parametrage'
 import { Route as CandidatTokenRouteImport } from './routes/candidat.$token'
+import { Route as EspaceCandidatAccueilRouteImport } from './routes/espace-candidat_.accueil'
+import { Route as EspaceCandidatConfirmationRouteImport } from './routes/espace-candidat_.confirmation'
+import { Route as EspaceCandidatQuestionnaireRouteImport } from './routes/espace-candidat_.questionnaire'
+import { Route as EspaceCandidatVerificationRouteImport } from './routes/espace-candidat_.verification'
 import { Route as ApiPublicJobDescriptionRouteImport } from './routes/api/public/job-description'
 import { Route as ApiPublicWebhookNameRouteImport } from './routes/api/public/webhook/$name'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EspaceCandidatRoute = EspaceCandidatRouteImport.update({
+  id: '/espace-candidat',
+  path: '/espace-candidat',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ParametrageRoute = ParametrageRouteImport.update({
@@ -30,6 +40,29 @@ const CandidatTokenRoute = CandidatTokenRouteImport.update({
   path: '/candidat/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EspaceCandidatAccueilRoute = EspaceCandidatAccueilRouteImport.update({
+  id: '/espace-candidat_/accueil',
+  path: '/espace-candidat/accueil',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EspaceCandidatConfirmationRoute =
+  EspaceCandidatConfirmationRouteImport.update({
+    id: '/espace-candidat_/confirmation',
+    path: '/espace-candidat/confirmation',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const EspaceCandidatQuestionnaireRoute =
+  EspaceCandidatQuestionnaireRouteImport.update({
+    id: '/espace-candidat_/questionnaire',
+    path: '/espace-candidat/questionnaire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const EspaceCandidatVerificationRoute =
+  EspaceCandidatVerificationRouteImport.update({
+    id: '/espace-candidat_/verification',
+    path: '/espace-candidat/verification',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicJobDescriptionRoute = ApiPublicJobDescriptionRouteImport.update({
   id: '/api/public/job-description',
   path: '/api/public/job-description',
@@ -43,23 +76,38 @@ const ApiPublicWebhookNameRoute = ApiPublicWebhookNameRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/espace-candidat': typeof EspaceCandidatRoute
   '/parametrage': typeof ParametrageRoute
   '/candidat/$token': typeof CandidatTokenRoute
+  '/espace-candidat/accueil': typeof EspaceCandidatAccueilRoute
+  '/espace-candidat/confirmation': typeof EspaceCandidatConfirmationRoute
+  '/espace-candidat/questionnaire': typeof EspaceCandidatQuestionnaireRoute
+  '/espace-candidat/verification': typeof EspaceCandidatVerificationRoute
   '/api/public/job-description': typeof ApiPublicJobDescriptionRoute
   '/api/public/webhook/$name': typeof ApiPublicWebhookNameRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/espace-candidat': typeof EspaceCandidatRoute
   '/parametrage': typeof ParametrageRoute
   '/candidat/$token': typeof CandidatTokenRoute
+  '/espace-candidat/accueil': typeof EspaceCandidatAccueilRoute
+  '/espace-candidat/confirmation': typeof EspaceCandidatConfirmationRoute
+  '/espace-candidat/questionnaire': typeof EspaceCandidatQuestionnaireRoute
+  '/espace-candidat/verification': typeof EspaceCandidatVerificationRoute
   '/api/public/job-description': typeof ApiPublicJobDescriptionRoute
   '/api/public/webhook/$name': typeof ApiPublicWebhookNameRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/espace-candidat': typeof EspaceCandidatRoute
   '/parametrage': typeof ParametrageRoute
   '/candidat/$token': typeof CandidatTokenRoute
+  '/espace-candidat_/accueil': typeof EspaceCandidatAccueilRoute
+  '/espace-candidat_/confirmation': typeof EspaceCandidatConfirmationRoute
+  '/espace-candidat_/questionnaire': typeof EspaceCandidatQuestionnaireRoute
+  '/espace-candidat_/verification': typeof EspaceCandidatVerificationRoute
   '/api/public/job-description': typeof ApiPublicJobDescriptionRoute
   '/api/public/webhook/$name': typeof ApiPublicWebhookNameRoute
 }
@@ -67,30 +115,50 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/espace-candidat'
     | '/parametrage'
     | '/candidat/$token'
+    | '/espace-candidat/accueil'
+    | '/espace-candidat/confirmation'
+    | '/espace-candidat/questionnaire'
+    | '/espace-candidat/verification'
     | '/api/public/job-description'
     | '/api/public/webhook/$name'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/espace-candidat'
     | '/parametrage'
     | '/candidat/$token'
+    | '/espace-candidat/accueil'
+    | '/espace-candidat/confirmation'
+    | '/espace-candidat/questionnaire'
+    | '/espace-candidat/verification'
     | '/api/public/job-description'
     | '/api/public/webhook/$name'
   id:
     | '__root__'
     | '/'
+    | '/espace-candidat'
     | '/parametrage'
     | '/candidat/$token'
+    | '/espace-candidat_/accueil'
+    | '/espace-candidat_/confirmation'
+    | '/espace-candidat_/questionnaire'
+    | '/espace-candidat_/verification'
     | '/api/public/job-description'
     | '/api/public/webhook/$name'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  EspaceCandidatRoute: typeof EspaceCandidatRoute
   ParametrageRoute: typeof ParametrageRoute
   CandidatTokenRoute: typeof CandidatTokenRoute
+  EspaceCandidatAccueilRoute: typeof EspaceCandidatAccueilRoute
+  EspaceCandidatConfirmationRoute: typeof EspaceCandidatConfirmationRoute
+  EspaceCandidatQuestionnaireRoute: typeof EspaceCandidatQuestionnaireRoute
+  EspaceCandidatVerificationRoute: typeof EspaceCandidatVerificationRoute
   ApiPublicJobDescriptionRoute: typeof ApiPublicJobDescriptionRoute
   ApiPublicWebhookNameRoute: typeof ApiPublicWebhookNameRoute
 }
@@ -102,6 +170,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/espace-candidat': {
+      id: '/espace-candidat'
+      path: '/espace-candidat'
+      fullPath: '/espace-candidat'
+      preLoaderRoute: typeof EspaceCandidatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/parametrage': {
@@ -116,6 +191,34 @@ declare module '@tanstack/react-router' {
       path: '/candidat/$token'
       fullPath: '/candidat/$token'
       preLoaderRoute: typeof CandidatTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/espace-candidat_/accueil': {
+      id: '/espace-candidat_/accueil'
+      path: '/espace-candidat/accueil'
+      fullPath: '/espace-candidat/accueil'
+      preLoaderRoute: typeof EspaceCandidatAccueilRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/espace-candidat_/confirmation': {
+      id: '/espace-candidat_/confirmation'
+      path: '/espace-candidat/confirmation'
+      fullPath: '/espace-candidat/confirmation'
+      preLoaderRoute: typeof EspaceCandidatConfirmationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/espace-candidat_/questionnaire': {
+      id: '/espace-candidat_/questionnaire'
+      path: '/espace-candidat/questionnaire'
+      fullPath: '/espace-candidat/questionnaire'
+      preLoaderRoute: typeof EspaceCandidatQuestionnaireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/espace-candidat_/verification': {
+      id: '/espace-candidat_/verification'
+      path: '/espace-candidat/verification'
+      fullPath: '/espace-candidat/verification'
+      preLoaderRoute: typeof EspaceCandidatVerificationRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/job-description': {
@@ -137,8 +240,13 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  EspaceCandidatRoute: EspaceCandidatRoute,
   ParametrageRoute: ParametrageRoute,
   CandidatTokenRoute: CandidatTokenRoute,
+  EspaceCandidatAccueilRoute: EspaceCandidatAccueilRoute,
+  EspaceCandidatConfirmationRoute: EspaceCandidatConfirmationRoute,
+  EspaceCandidatQuestionnaireRoute: EspaceCandidatQuestionnaireRoute,
+  EspaceCandidatVerificationRoute: EspaceCandidatVerificationRoute,
   ApiPublicJobDescriptionRoute: ApiPublicJobDescriptionRoute,
   ApiPublicWebhookNameRoute: ApiPublicWebhookNameRoute,
 }
