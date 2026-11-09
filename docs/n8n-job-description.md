@@ -28,7 +28,7 @@ Une section non renseignée dans le document doit être une chaîne vide. Ne pas
 n8n peut récupérer les huit sections actuellement enregistrées (par exemple pour l’analyse de CV) :
 
 - URL : `GET /api/public/job-description` (également accepté en `POST`)
-- Authentification : en-tête `x-webhook-secret` égal à `N8N_WEBHOOK_SECRET`
+- Authentification : en-tête `x-webhook-secret` égal à `N8N_WEBHOOK_SECRET` (ou `Authorization: Bearer <secret>`)
 - Option : `?job_id=<uuid>` pour cibler une fiche précise ; sans ce paramètre, la fiche de référence de l’application est renvoyée
 - Réponse : uniquement `job_id`, les huit sections et `updated_at`. Les messages d’invitation, de confirmation et de réponse négative ne sont jamais renvoyés.
 

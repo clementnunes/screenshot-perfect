@@ -35,7 +35,7 @@ use the editor.
 - Candidate links: random token, only its SHA-256 hash is stored, with expiry + revocation; never put internal ids in public URLs.
 - CV analysis is delegated to n8n (`cv_analysis_requested` event → `cv-analysis-result` callback); the app only computes the weighted score, keeping one owner for CV inference.
 - CV text is extracted in the browser with pdfjs (the AI model has no PDF input); pages are stored in `applications.cv_pages` so evidence can cite pages.
-- n8n endpoints: `POST /api/public/webhook/<name>` authenticated by `x-webhook-secret` = `N8N_WEBHOOK_SECRET`, deduped by `idempotency-key`; outbound events go to optional `N8N_OUTBOUND_URL`.
+- n8n endpoints: `POST /api/public/webhook/<name>` authenticated by `x-webhook-secret` (or `Authorization: Bearer`) = `N8N_WEBHOOK_SECRET`, read via `readSecret` (Worker `env` first, since online `process.env` may lack it), deduped by `idempotency-key`; outbound events go to optional `N8N_OUTBOUND_URL`.
 - Scoring/filter rules are pure functions in `src/lib/recruitment.ts` with tests next to them.
 - Bulk CV import stores files sequentially without AI fan-out; each stored CV is analysed only through an explicit per-candidate action to avoid uncontrolled batch inference.
 - Interview questions are application-scoped snapshots received from n8n; candidate answers and completion are forwarded to n8n and acknowledged only after its authenticated callbacks persist them, keeping n8n in charge of the interview lifecycle.

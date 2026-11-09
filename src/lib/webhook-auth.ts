@@ -15,7 +15,7 @@ export function givenWebhookSecret(headers: Headers) {
   if (direct) return direct;
   const auth = headers.get("authorization")?.trim() ?? "";
   const m = /^Bearer\s+(.+)$/i.exec(auth);
-  return m ? m[1].trim() : "";
+  return m?.[1]?.trim() ?? "";
 }
 
 export function isAuthorizedWebhook(request: Request) {
