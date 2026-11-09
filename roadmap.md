@@ -15,3 +15,5 @@
 - [x] Exposer les huit sections de la fiche de poste à n8n via un endpoint public protégé par le mot de passe partagé.
 - [x] Remplacer l’envoi d’e-mail d’accès par le lien candidat existant et la confirmation de son e-mail.
 - [x] Vérifier l’accès sans invitation, le refus d’un autre e-mail, la sauvegarde relue après rechargement et la fermeture d’accès ; règles de soumission testées.
+- [x] Permettre le test par saisie d’e-mail seule dans la session recruteur, sans ouvrir les dossiers privés au public ; bouton, accès et refus hors session vérifiés.
+- [x] Réunir toutes les questions communes et suggérées enregistrées, sans doublons ; 4 communes et 5 personnalisées relues sur le parcours réel, 20 tests réussis.

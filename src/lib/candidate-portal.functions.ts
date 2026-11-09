@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 const accessInput = z.object({ token: z.string().min(20).max(200), email: z.string().trim().email().max(255) });
 
 export const requestCandidateAccess = createServerFn({ method: "POST" })
@@ -12,20 +13,52 @@ export const requestCandidateAccess = createServerFn({ method: "POST" })
     if (!app.cv_path) throw new Error("Veuillez d’abord déposer votre CV avec votre lien candidat.");
     const { prepareExistingQuestions } = await import("./candidate-portal.server");
     await prepareExistingQuestions(app.id, app.job_id);
-    const { setCookie, getRequest } = await import("@tanstack/react-start/server");
+    const { setCookie, getRequest, deleteCookie } = await import("@tanstack/react-start/server");
+    deleteCookie("orvane-candidate-test", { path: "/" });
     const secure = new URL(getRequest().url).protocol === "https:";
     setCookie("orvane-candidate", data.token, { httpOnly: true, secure, sameSite: secure ? "none" : "lax", path: "/", expires: new Date(app.token_expires_at ?? Date.now()) });
+    return { ok: true };
+  });
+
+export const requestCandidateTestAccess = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ email: z.string().trim().email().max(255) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: recruiter, error: roleError } = await context.supabase.rpc("is_recruiter");
+    if (roleError || !recruiter) throw new Error("Test réservé aux recruteurs.");
+    const { data: candidate, error } = await context.supabase.from("candidates").select("id").eq("email", data.email.toLowerCase()).maybeSingle();
+    if (error) throw error;
+    if (!candidate) throw new Error("Aucune candidature pour cette adresse e-mail.");
+    const { data: app, error: appError } = await context.supabase.from("applications").select("id,job_id,cv_path").eq("candidate_id", candidate.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (appError) throw appError;
+    if (!app?.cv_path) throw new Error("Aucun CV disponible pour cette candidature.");
+    const { prepareExistingQuestions } = await import("./candidate-portal.server");
+    await prepareExistingQuestions(app.id, app.job_id);
+    const { setCookie, deleteCookie, getRequest } = await import("@tanstack/react-start/server");
+    const secure = new URL(getRequest().url).protocol === "https:";
+    deleteCookie("orvane-candidate", { path: "/" });
+    setCookie("orvane-candidate-test", app.id, { httpOnly: true, secure, sameSite: secure ? "none" : "lax", path: "/", maxAge: 3600 });
     return { ok: true };
   });
 
 export const leaveCandidatePortal = createServerFn({ method: "POST" }).handler(async () => {
   const { deleteCookie } = await import("@tanstack/react-start/server");
   deleteCookie("orvane-candidate", { path: "/" });
+  deleteCookie("orvane-candidate-test", { path: "/" });
   return { ok: true };
 });
 
 async function requireCandidate() {
   const { getCookie } = await import("@tanstack/react-start/server");
+  const testId = getCookie("orvane-candidate-test");
+  if (testId) {
+    const { requirePortalTestRecruiter } = await import("./portal-test-auth.server");
+    const client = await requirePortalTestRecruiter();
+    const { data: app, error } = await client.from("applications").select("*, candidates(full_name,email), jobs(*), interviews(*)").eq("id", z.string().uuid().parse(testId)).maybeSingle();
+    if (error) throw error;
+    if (!app) throw new Error("Candidature de test introuvable.");
+    return app;
+  }
   const { findApplicationByToken } = await import("./recruitment.server");
   const { canAccessByLink } = await import("./interview-contract");
   const token = getCookie("orvane-candidate");

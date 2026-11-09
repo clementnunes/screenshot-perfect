@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { assembleInterviewQuestions, isActiveInvitation } from "./interview-contract";
+import { analysisInterviewQuestions, assembleInterviewQuestions, isActiveInvitation } from "./interview-contract";
 import type { CvAnalysisView } from "./recruitment";
 
 export async function candidateApplication(email: string) {
@@ -11,15 +11,17 @@ export async function candidateApplication(email: string) {
 }
 
 export async function prepareExistingQuestions(applicationId: string, jobId: string) {
-  const [{ data: common, error }, { data: analysis }, { data: iv }] = await Promise.all([
+  const [{ data: common, error }, { data: analysis, error: analysisError }, { data: iv, error: interviewError }] = await Promise.all([
     supabaseAdmin.from("interview_questions").select("question").eq("job_id", jobId).is("application_id", null).eq("kind", "common").order("position"),
     supabaseAdmin.from("cv_analyses").select("result").eq("application_id", applicationId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     supabaseAdmin.from("interviews").select("status").eq("application_id", applicationId).maybeSingle(),
   ]);
   if (error) throw error;
+  if (analysisError) throw analysisError;
+  if (interviewError) throw interviewError;
   if (iv && iv.status !== "not_started") return;
   const result = analysis?.result as CvAnalysisView | undefined;
-  const questions = assembleInterviewQuestions((common ?? []).map((q) => q.question), result?.interview_questions ?? result?.detail?.suggested_questions ?? []);
+  const questions = assembleInterviewQuestions((common ?? []).map((q) => q.question), analysisInterviewQuestions(result));
   const prepared = await supabaseAdmin.rpc("prepare_portal_interview", { p_application: applicationId, p_questions: questions });
   if (prepared.error) throw prepared.error;
 }

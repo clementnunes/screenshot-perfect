@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assembleInterviewQuestions, canAccessByLink, canSubmitInterview, interviewQuestionsInput, isActiveInvitation } from "./interview-contract";
+import { analysisInterviewQuestions, assembleInterviewQuestions, canAccessByLink, canSubmitInterview, interviewQuestionsInput, isActiveInvitation } from "./interview-contract";
 
 describe("questions pilotées par n8n", () => {
   const active = { token_revoked: false, token_expires_at: "2026-11-10T12:00:00Z" };
@@ -25,6 +25,12 @@ describe("questions pilotées par n8n", () => {
   });
   it("conserve le texte et déduplique sans générer de questions", () => {
     expect(assembleInterviewQuestions([" Expérience ?", "Management ?"], ["expérience ?", "Projet CV ?"])).toEqual([{ question: " Expérience ?", kind: "common" }, { question: "Management ?", kind: "common" }, { question: "Projet CV ?", kind: "personalized" }]);
+  });
+  it("récupère les questions suggérées même si la liste principale est vide", () => {
+    expect(assembleInterviewQuestions(["Management ?"], analysisInterviewQuestions({ interview_questions: [], detail: { suggested_questions: ["Projet WMS ?"] } }))).toEqual([{ question: "Management ?", kind: "common" }, { question: "Projet WMS ?", kind: "personalized" }]);
+  });
+  it("réunit les deux listes de questions de l’analyse sans doublons", () => {
+    expect(analysisInterviewQuestions({ interview_questions: ["Projet WMS ?"], detail: { suggested_questions: ["projet WMS ?", "Gestion des stocks ?"] } })).toEqual(["Projet WMS ?", "Gestion des stocks ?"]);
   });
   it("refuse la soumission tant qu'une réponse est vide", () => {
     expect(canSubmitInterview([{ id: "1" }, { id: "2" }], [{ question_id: "1", answer_text: "Réponse" }, { question_id: "2", answer_text: " " }])).toBe(false);

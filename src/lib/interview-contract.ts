@@ -15,6 +15,10 @@ export function assembleInterviewQuestions(common: string[], personalized: strin
   });
 }
 
+export function analysisInterviewQuestions(result: { interview_questions?: string[]; detail?: { suggested_questions?: string[] } } | null | undefined) {
+  return assembleInterviewQuestions([], [...(result?.interview_questions ?? []), ...(result?.detail?.suggested_questions ?? [])]).map((q) => q.question);
+}
+
 export function canSubmitInterview(questions: { id: string }[], answers: { question_id: string; answer_text: string }[]) {
   return questions.length > 0 && questions.every((q) => answers.some((a) => a.question_id === q.id && a.answer_text.trim().length > 0));
 }
