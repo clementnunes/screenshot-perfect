@@ -11,7 +11,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ANALYSIS_STEPS, analysisScore, requiresInterview, DECISION_LABEL, isSkillMentioned, type CvAnalysisView, type N8nDetail, type InterviewSummary } from "@/lib/recruitment";
+import { ANALYSIS_STEPS, analysisScore, effectiveInterviewStatus, requiresInterview, DECISION_LABEL, isSkillMentioned, type CvAnalysisView, type N8nDetail, type InterviewSummary } from "@/lib/recruitment";
 import { eraseCandidate, recordDecision, regenerateCandidateLink, retryCvAnalysis, retryInterviewAnalysis, revokeCandidateLink, requestInterview } from "@/lib/recruitment.functions";
 import { CriterionPill, InterviewPill, RecommendationPill, ScoreBar } from "./StatusBadges";
 import { CandidateLinkBox } from "./AddApplicationDialog";
@@ -135,7 +135,7 @@ export function CandidateSheet({ applicationId, onClose }: { applicationId: stri
                 <ScoreBar score={analysisScore(analysis, data.app.match_score)} />
                 {requiresInterview(analysisScore(analysis, data.app.match_score), data.app.jobs.match_threshold) && <span className="rounded bg-primary-soft px-2 py-0.5 text-xs font-medium text-primary">Pré-entretien à faire (au-delà du seuil de {data.app.jobs.match_threshold} %)</span>}
                 <RecommendationPill value={data.app.recommendation} />
-                <InterviewPill status={data.interview?.status} />
+                <InterviewPill status={effectiveInterviewStatus(data.interview?.status, analysisScore(analysis, data.app.match_score), data.app.jobs.match_threshold)} />
               </div>
               <div className="pt-4">
                 <Progress status={data.app.analysis_status} error={data.app.analysis_error} retrying={busy} onRetry={() => run(() => retry({ data: { applicationId: data.app.id } }))} />
@@ -215,7 +215,7 @@ export function CandidateSheet({ applicationId, onClose }: { applicationId: stri
 
             <Section n={7} title="Questions et réponses du pré-entretien">
               <div className="mb-4 flex flex-wrap items-center gap-3">
-                <InterviewPill status={data.interview?.status} />
+                <InterviewPill status={effectiveInterviewStatus(data.interview?.status, analysisScore(analysis, data.app.match_score), data.app.jobs.match_threshold)} />
                 <span className="text-xs text-muted-foreground">{answers.filter((a) => a.answer_text.trim()).length} / {data.interview ? data.questions.length : (analysis?.interview_questions.length ?? 0) + data.questions.filter((q) => q.kind === "common").length} réponses</span>
                 <Button size="sm" variant="outline" disabled={busy || !data.app.cv_path || data.app.status === "decided" || data.interview?.status === "completed"} onClick={() => run(() => invite({ data: { applicationId: data.app.id, origin: window.location.origin } }), "Pré-entretien prêt : le candidat peut utiliser son lien existant")}>Préparer le pré-entretien</Button>
                 <Button size="sm" variant="ghost" onClick={() => window.open(`${window.location.origin}/espace-candidat`, "_blank", "noopener,noreferrer")}><Link2 />Portail candidat</Button>

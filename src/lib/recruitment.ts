@@ -82,8 +82,9 @@ export const FILTERS: { key: DashboardFilter; label: string }[] = [
 ];
 
 export function matchesFilter(
-  app: { status: string; analysis_status: string },
+  app: { status: string; analysis_status: string; match_score?: number | null; interviewStatus?: string | undefined },
   filter: DashboardFilter,
+  threshold?: number | null,
 ): boolean {
   switch (filter) {
     case "all":
@@ -91,7 +92,8 @@ export function matchesFilter(
     case "to_analyze":
       return app.status !== "decided" && app.analysis_status !== "done";
     case "interview":
-      return app.status === "interview_pending";
+      return app.status === "interview_pending"
+        || effectiveInterviewStatus(app.interviewStatus, app.match_score, threshold) === "not_started";
     case "to_review":
       return app.status === "to_review" || app.status === "interview_done";
     case "decided":
@@ -281,4 +283,17 @@ export function analysisScore(a: CvAnalysisView | undefined, stored: number | nu
 export function requiresInterview(score: number | null | undefined, threshold: number | null | undefined): boolean {
   if (score == null || threshold == null || !Number.isFinite(score)) return false;
   return score > threshold;
+}
+
+/**
+ * The status shown for a pre-interview. A profile above the threshold that has not
+ * started anything yet is shown as "not_started" so the column reads "À réaliser".
+ */
+export function effectiveInterviewStatus(
+  status: string | undefined,
+  score: number | null | undefined,
+  threshold: number | null | undefined,
+): string {
+  if (status && status !== "none") return status;
+  return requiresInterview(score, threshold) ? "not_started" : "none";
 }

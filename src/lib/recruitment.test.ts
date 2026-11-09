@@ -33,6 +33,15 @@ describe("filtres", () => {
   it("une candidature décidée n'apparaît pas à analyser", () => {
     expect(matchesFilter({ status: "decided", analysis_status: "error" }, "to_analyze")).toBe(false);
   });
+  it("un profil au-dessus du seuil apparaît en « pré-entretien à réaliser »", () => {
+    expect(matchesFilter({ status: "new", analysis_status: "done", match_score: 76 }, "interview", 70)).toBe(true);
+  });
+  it("un profil sous le seuil n'y apparaît pas", () => {
+    expect(matchesFilter({ status: "new", analysis_status: "done", match_score: 50 }, "interview", 70)).toBe(false);
+  });
+  it("un pré-entretien déjà terminé n'est plus à réaliser", () => {
+    expect(matchesFilter({ status: "new", analysis_status: "done", match_score: 76, interviewStatus: "completed" }, "interview", 70)).toBe(false);
+  });
 });
 
 describe("correspondance tolérante au libellé", () => {

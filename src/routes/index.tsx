@@ -20,7 +20,7 @@ import { AnalysisPill, InterviewPill, RecommendationPill, ScoreBar } from "@/com
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { FILTERS, analysisScore, requiresInterview, analysisSkills, matchesFilter, type CvAnalysisView, type DashboardFilter } from "@/lib/recruitment";
+import { FILTERS, analysisScore, effectiveInterviewStatus, analysisSkills, matchesFilter, type CvAnalysisView, type DashboardFilter } from "@/lib/recruitment";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
@@ -69,7 +69,7 @@ function Dashboard() {
     review: apps.filter((a) => matchesFilter(a, "to_review")).length,
   }), [apps]);
 
-  const rows = apps.filter((a) => matchesFilter(a, filter) && (!q || a.candidates.full_name.toLowerCase().includes(q.toLowerCase())));
+  const rows = apps.filter((a) => matchesFilter(a, filter, job?.match_threshold) && (!q || a.candidates.full_name.toLowerCase().includes(q.toLowerCase())));
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmDelete, setConfirmDelete] = useState<string[] | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -139,7 +139,7 @@ function Dashboard() {
           <div className="flex flex-wrap gap-1">
             {FILTERS.map((f) => (
               <button key={f.key} onClick={() => setFilter(f.key)} className={cn("rounded-md px-3 py-1.5 text-sm", filter === f.key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
-                {f.label} <span className="ml-1 text-xs opacity-70">{apps.filter((a) => matchesFilter(a, f.key)).length}</span>
+                {f.label} <span className="ml-1 text-xs opacity-70">{apps.filter((a) => matchesFilter(a, f.key, job?.match_threshold)).length}</span>
               </button>
             ))}
           </div>
@@ -184,8 +184,8 @@ function Dashboard() {
                       {!a.skills.length && <span className="text-muted-foreground">—</span>}
                     </div>
                   </td>
-                  <td className="px-4 py-3"><ScoreBar score={a.match_score} />{requiresInterview(a.match_score, job?.match_threshold) && <span className="mt-1 inline-block rounded bg-primary-soft px-1.5 py-0.5 text-xs font-medium text-primary">Pré-entretien à faire</span>}</td>
-                  <td className="px-4 py-3"><InterviewPill status={a.interviewStatus} /></td>
+                  <td className="px-4 py-3"><ScoreBar score={a.match_score} /></td>
+                  <td className="px-4 py-3"><InterviewPill status={effectiveInterviewStatus(a.interviewStatus, a.match_score, job?.match_threshold)} /></td>
                   <td className="px-4 py-3">{a.status === "decided" ? <span className="text-xs font-medium">Décision prise</span> : <RecommendationPill value={a.recommendation} />}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-right"><AnalyzeButton id={a.id} status={a.analysis_status} hasCv={!!a.cv_path} /><Button size="sm" variant="ghost" aria-label={`Supprimer ${a.candidates.full_name}`} onClick={(e) => { e.stopPropagation(); setConfirmDelete([a.id]); }}><Trash2 /></Button><Button size="sm" variant="ghost">Examiner <ChevronRight /></Button></td>
                 </tr>
