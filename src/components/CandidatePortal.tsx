@@ -43,7 +43,7 @@ export function CandidatePortalPage({ view, questionIndex }: { view: "overview" 
   const query = useQuery({ queryKey: ["portal-session"], queryFn: () => get(), retry: false });
   useEffect(() => { if (query.data?.status === "completed" && view !== "confirmation") void navigate({ to: "/espace-candidat/confirmation", replace: true }); }, [query.data?.status, view, navigate]);
   if (query.isPending) return <PortalShell><p className="text-muted-foreground">Chargement de votre pré-entretien…</p></PortalShell>;
-  if (query.error || !query.data) return <PortalShell><LockKeyhole className="mb-5 h-8 w-8 text-primary" /><h1 className="text-2xl font-semibold">Accès à votre pré-entretien</h1><p className="mt-4 text-muted-foreground">{query.error instanceof Error && query.error.message ? query.error.message : "Saisissez votre e-mail sur la page d’accès."}</p><Button className="mt-6" onClick={() => navigate({ to: "/espace-candidat" })}>Accès candidat</Button></PortalShell>;
+  if (query.error || !query.data) return <CandidateAccess />;
   return <PortalShell signedIn>{view === "overview" ? <Overview session={query.data} /> : view === "confirmation" && query.data.status === "completed" ? <Confirmation session={query.data} /> : <Questionnaire key={`${query.data.startedAt}:${questionIndex ?? "resume"}`} session={query.data} initialReview={view === "review"} questionIndex={questionIndex} />}</PortalShell>;
 }
 
