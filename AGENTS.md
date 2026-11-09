@@ -31,6 +31,7 @@ use the editor.
 
 ## Project rules (Orvane Recrutement)
 - Recruiter pages remain `/` and `/parametrage`, with inline login and candidate side sheets; candidate access, overview, questionnaire, review and confirmation use separate `/espace-candidat` routes. The legacy token URL stays available for CV collection.
+- Shared route metadata helpers must live in UI-free modules, not component files, so eager route registration cannot load React Refresh components before the client preamble.
 - Recruiters read/write via the browser client under RLS (`is_recruiter()`); candidates never touch tables directly — all candidate access goes through token-checked server functions in `src/lib/recruitment.functions.ts`.
 - Candidate links: random token, only its SHA-256 hash is stored, with expiry + revocation; never put internal ids in public URLs.
 - CV analysis is delegated to n8n (`cv_analysis_requested` event → `cv-analysis-result` callback); the app only computes the weighted score, keeping one owner for CV inference.

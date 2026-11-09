@@ -16,10 +16,6 @@ import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, A
 import { getPortalSession, requestCandidateAccess, savePortalAnswer, startPortalInterview, submitPortalInterview } from "@/lib/candidate-portal.functions";
 import { canSubmitInterview } from "@/lib/interview-contract";
 
-export function candidateHead(title: string, description: string) {
-  return { meta: [{ title: `${title} | Orvane Recrutement` }, { name: "description", content: description }, { property: "og:title", content: `${title} | Orvane Recrutement` }, { property: "og:description", content: description }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex, nofollow" }] };
-}
-
 function PortalShell({ children, signedIn = false }: { children: ReactNode; signedIn?: boolean }) {
   const navigate = useNavigate();
   const qc = useQueryClient();

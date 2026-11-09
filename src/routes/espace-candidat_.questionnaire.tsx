@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { CandidatePortalPage, candidateHead } from "@/components/CandidatePortal";
+import { CandidatePortalPage } from "@/components/CandidatePortal";
+import { candidateHead } from "@/lib/candidate-head";
 
 export const Route = createFileRoute("/espace-candidat_/questionnaire")({
   head: () => candidateHead("Questionnaire candidat", "Répondez aux questions de votre pré-entretien."),
