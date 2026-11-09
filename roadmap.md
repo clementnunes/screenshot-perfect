@@ -6,3 +6,4 @@
 - [x] Vérifier la validation du retour n8n (12 tests réussis) et l’import connecté : erreur 404 visible, fiche conservée, aucune erreur de page.
 - [x] Remettre l’URL de test n8n fournie pour la lecture et le découpage des fiches de poste.
 - [ ] Vérifier un découpage réel réussi (en attente d’un fichier de fiche de poste et du workflow de test en écoute).
+- [x] Exposer les huit sections de la fiche de poste à n8n via un endpoint public protégé par le mot de passe partagé.

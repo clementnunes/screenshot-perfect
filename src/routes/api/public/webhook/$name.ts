@@ -2,17 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { cvAnalysisInput } from "@/lib/cv-contract";
 import { interviewAnswerInput, interviewQuestionsInput } from "@/lib/interview-contract";
+import { isAuthorizedWebhook } from "@/lib/webhook-auth";
 
 // n8n integration endpoints: POST /api/public/webhook/<name>
 // Auth: header "x-webhook-secret" must equal N8N_WEBHOOK_SECRET.
 // Deduplication: optional "idempotency-key" header; a replayed key returns the first result.
-
-function safeEqual(a: string, b: string) {
-  if (a.length !== b.length) return false;
-  let r = 0;
-  for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return r === 0;
-}
 
 const schemas = {
   "candidate-received": z.object({ job_id: z.string().uuid(), full_name: z.string().min(2).max(120), email: z.string().email().max(255), phone: z.string().max(40).optional() }),
@@ -32,9 +26,7 @@ export const Route = createFileRoute("/api/public/webhook/$name")({
   server: {
     handlers: {
       POST: async ({ request, params }) => {
-        const secret = process.env["N8N_WEBHOOK_SECRET"];
-        const given = request.headers.get("x-webhook-secret") ?? "";
-        if (!secret || !safeEqual(given, secret)) return Response.json({ error: "unauthorized" }, { status: 401 });
+        if (!isAuthorizedWebhook(request)) return Response.json({ error: "unauthorized" }, { status: 401 });
 
         const name = params.name as Name;
         if (!(name in schemas)) return Response.json({ error: "unknown webhook" }, { status: 404 });

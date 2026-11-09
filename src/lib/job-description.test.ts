@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { JOB_DESCRIPTION_WEBHOOK_URL, parseJobDescriptionResponse } from "./job-description";
+import { JOB_DESCRIPTION_COLUMNS, JOB_DESCRIPTION_WEBHOOK_URL, jobDescriptionPayload, parseJobDescriptionResponse } from "./job-description";
 
 describe("fiche de poste découpée par n8n", () => {
   it("utilise l’URL de test fournie pour le découpage", () => {
@@ -26,5 +26,39 @@ describe("fiche de poste découpée par n8n", () => {
   });
   it("accepte une section explicitement vide sans inventer de diplôme", () => {
     expect(parseJobDescriptionResponse({ ...sections, "Diplômes ou certifications pertinents": "" }).diplomas).toBe("");
+  });
+  it("n'expose à n8n que les huit sections de la fiche de poste", () => {
+    const row = {
+      id: "ba509192-ef91-4b8e-817c-15d4aea9929b",
+      title: "Responsable d'entrepôt logistique (H/F)",
+      description: "Coordonne la réception et l'expédition.",
+      missions: "Encadrer l'équipe.",
+      skills: "WMS, CACES",
+      experience: "3 ans",
+      diplomas: "",
+      location: "Amiens (80)",
+      contract_type: "CDI",
+      updated_at: "2026-11-09T09:29:25.346Z",
+      sender_email: "recruteur@orvane.fr",
+      invitation_message: "Bonjour, nous souhaitons échanger avec vous.",
+      rejection_template: "Nous ne pouvons pas donner suite.",
+    };
+    const payload = jobDescriptionPayload(row);
+    expect(payload).toEqual({
+      job_id: "ba509192-ef91-4b8e-817c-15d4aea9929b",
+      title: "Responsable d'entrepôt logistique (H/F)",
+      description: "Coordonne la réception et l'expédition.",
+      missions: "Encadrer l'équipe.",
+      skills: "WMS, CACES",
+      experience: "3 ans",
+      diplomas: "",
+      location: "Amiens (80)",
+      contract_type: "CDI",
+      updated_at: "2026-11-09T09:29:25.346Z",
+    });
+    expect(JSON.stringify(payload)).not.toContain("rejection_template");
+  });
+  it("ne lit en base que les colonnes de la fiche de poste", () => {
+    expect(JOB_DESCRIPTION_COLUMNS).toBe("id, updated_at, title, description, missions, skills, experience, diplomas, location, contract_type");
   });
 });

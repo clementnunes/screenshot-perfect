@@ -55,6 +55,17 @@ export function parseJobDescriptionResponse(value: unknown): JobDescription {
   return result.data;
 }
 
+/** Columns the read endpoint may expose: the eight sections plus identity and freshness. */
+export const JOB_DESCRIPTION_COLUMNS = "id, updated_at, title, description, missions, skills, experience, diplomas, location, contract_type";
+
+export type JobDescriptionRow = { id?: string | null; updated_at?: string | null } & Partial<Record<keyof JobDescription, string | null>>;
+
+/** Shapes a jobs row into the payload n8n receives: only the eight sections, never the email templates. */
+export function jobDescriptionPayload(job: JobDescriptionRow): { job_id: string | null; updated_at: string | null } & JobDescription {
+  const sections = Object.fromEntries(JOB_DESCRIPTION_FIELDS.map(([key]) => [key, job[key] ?? ""])) as JobDescription;
+  return { job_id: job.id ?? null, ...sections, updated_at: job.updated_at ?? null };
+}
+
 export function validateJobDescriptionFile(file: File) {
   if (!/\.(pdf|docx?|txt)$/i.test(file.name)) throw new Error("Formats acceptés : PDF, Word ou TXT.");
   if (file.size === 0) throw new Error("Le fichier est vide.");
