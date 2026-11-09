@@ -10,6 +10,7 @@ export const requestCandidateAccess = createServerFn({ method: "POST" })
     const app = await findApplicationByToken(data.token);
     if (!app || !canAccessByLink(app, app.candidates.email, data.email)) throw new Error("Ce lien ou cette adresse e-mail ne correspond pas à une candidature active.");
     if (!app.cv_path) throw new Error("Veuillez d’abord déposer votre CV avec votre lien candidat.");
+    await assertThresholdMet(app.id);
     const { prepareExistingQuestions } = await import("./candidate-portal.server");
     await prepareExistingQuestions(app.id, app.job_id);
     const { setCookie, getRequest, deleteCookie } = await import("@tanstack/react-start/server");
@@ -22,6 +23,15 @@ export const requestCandidateAccess = createServerFn({ method: "POST" })
 const emailField = z.string().trim().email().max(255);
 const withEmail = z.object({ email: emailField.optional() });
 
+async function assertThresholdMet(applicationId: string) {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { requiresInterview } = await import("./recruitment");
+  const { data, error } = await supabaseAdmin.from("applications").select("match_score, jobs(match_threshold)").eq("id", applicationId).maybeSingle();
+  if (error) throw error;
+  const threshold = (data?.jobs as { match_threshold?: number | null } | null)?.match_threshold;
+  if (!data || !requiresInterview(data.match_score, threshold)) throw new Error("Le pré-entretien n’est pas ouvert pour cette candidature.");
+}
+
 async function findTestApplicationId(email: string) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data: candidate, error } = await supabaseAdmin.from("candidates").select("id").ilike("email", email.trim()).limit(1).maybeSingle();
@@ -30,6 +40,7 @@ async function findTestApplicationId(email: string) {
   const { data: app, error: appError } = await supabaseAdmin.from("applications").select("id,job_id,cv_path").eq("candidate_id", candidate.id).not("cv_path", "is", null).order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (appError) throw appError;
   if (!app?.cv_path) throw new Error("Aucun CV disponible pour cette candidature.");
+  await assertThresholdMet(app.id);
   return app;
 }
 
@@ -61,6 +72,7 @@ async function requireCandidate(email?: string) {
     const { data: app, error } = await supabaseAdmin.from("applications").select("*, candidates(full_name,email), jobs(*), interviews(*)").eq("id", z.string().uuid().parse(testId)).maybeSingle();
     if (error) throw error;
     if (!app) throw new Error("Candidature de test introuvable.");
+    await assertThresholdMet(app.id);
     return app;
   }
   const { findApplicationByToken } = await import("./recruitment.server");
@@ -68,6 +80,7 @@ async function requireCandidate(email?: string) {
   const token = getCookie("orvane-candidate");
   const app = token ? await findApplicationByToken(token) : null;
   if (!app || !canAccessByLink(app, app.candidates.email, app.candidates.email)) throw new Error("Votre lien candidat est invalide, expiré ou révoqué.");
+  await assertThresholdMet(app.id);
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data: interview, error } = await supabaseAdmin.from("interviews").select("*").eq("application_id", app.id).maybeSingle();
   if (error) throw error;
