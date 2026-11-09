@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeMatchScore, matchesFilter, weightsAreValid } from "./recruitment";
+import { computeMatchScore, dashboardRecommendation, matchesFilter, weightsAreValid } from "./recruitment";
 
 const criteria = [
   { name: "Management", weight: 25 },
@@ -41,6 +41,26 @@ describe("filtres", () => {
   });
   it("un pré-entretien déjà terminé n'est plus à réaliser", () => {
     expect(matchesFilter({ status: "new", analysis_status: "done", match_score: 76, interviewStatus: "completed" }, "interview", 70)).toBe(false);
+  });
+});
+
+describe("recommandation affichée dans le tableau", () => {
+  it("« À examiner » quand la correspondance dépasse 50 % et que le pré-entretien est terminé", () => {
+    expect(dashboardRecommendation(null, 76, "completed")).toBe("review");
+    expect(dashboardRecommendation("invite_interview", 51, "completed")).toBe("review");
+  });
+  it("jamais « À examiner » si le pré-entretien n'est pas terminé", () => {
+    expect(dashboardRecommendation("review", 76, undefined)).toBe(null);
+    expect(dashboardRecommendation("review", 76, "in_progress")).toBe(null);
+  });
+  it("jamais « À examiner » si la correspondance n'atteint pas 50 %", () => {
+    expect(dashboardRecommendation("review", 50, "completed")).toBe(null);
+    expect(dashboardRecommendation("review", 43, "completed")).toBe(null);
+    expect(dashboardRecommendation("review", null, "completed")).toBe(null);
+  });
+  it("les autres recommandations de l'IA restent visibles", () => {
+    expect(dashboardRecommendation("invite_interview", 76, undefined)).toBe("invite_interview");
+    expect(dashboardRecommendation("verify", 43, undefined)).toBe("verify");
   });
 });
 

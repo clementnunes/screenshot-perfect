@@ -286,6 +286,23 @@ export function requiresInterview(score: number | null | undefined, threshold: n
   return score > threshold;
 }
 
+/** Match percentage above which a completed pre-interview makes a profile "to examine". */
+export const REVIEW_MIN_SCORE = 50;
+
+/**
+ * The recommendation shown in the dashboard table. "À examiner" appears only when the
+ * match is strictly above 50 % AND the pre-interview has been completed; the AI's own
+ * "review" is hidden until then, other AI recommendations are kept.
+ */
+export function dashboardRecommendation(
+  recommendation: string | null,
+  score: number | null | undefined,
+  interviewStatus: string | undefined,
+): string | null {
+  if (score != null && score > REVIEW_MIN_SCORE && interviewStatus === "completed") return "review";
+  return recommendation === "review" ? null : recommendation;
+}
+
 /**
  * The status shown for a pre-interview. A profile above the threshold that has not
  * started anything yet is shown as "not_started" so the column reads "À réaliser".

@@ -20,7 +20,7 @@ import { AnalysisPill, InterviewPill, RecommendationPill, ScoreBar } from "@/com
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { FILTERS, analysisScore, effectiveInterviewStatus, analysisSkills, matchesFilter, type CvAnalysisView, type DashboardFilter } from "@/lib/recruitment";
+import { FILTERS, analysisScore, dashboardRecommendation, effectiveInterviewStatus, analysisSkills, matchesFilter, type CvAnalysisView, type DashboardFilter } from "@/lib/recruitment";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
@@ -186,7 +186,7 @@ function Dashboard() {
                   </td>
                   <td className="px-4 py-3"><ScoreBar score={a.match_score} /></td>
                   <td className="px-4 py-3"><InterviewPill status={effectiveInterviewStatus(a.interviewStatus, a.match_score, job?.match_threshold)} /></td>
-                  <td className="px-4 py-3">{a.status === "decided" ? <span className="text-xs font-medium">Décision prise</span> : <RecommendationPill value={a.recommendation} />}</td>
+                  <td className="px-4 py-3">{a.status === "decided" ? <span className="text-xs font-medium">Décision prise</span> : <RecommendationPill value={dashboardRecommendation(a.recommendation, a.match_score, a.interviewStatus)} />}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-right"><AnalyzeButton id={a.id} status={a.analysis_status} hasCv={!!a.cv_path} /><Button size="sm" variant="ghost" aria-label={`Supprimer ${a.candidates.full_name}`} onClick={(e) => { e.stopPropagation(); setConfirmDelete([a.id]); }}><Trash2 /></Button><Button size="sm" variant="ghost">Examiner <ChevronRight /></Button></td>
                 </tr>
               ))}
