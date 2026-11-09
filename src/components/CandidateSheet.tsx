@@ -12,7 +12,7 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ANALYSIS_STEPS, analysisScore, effectiveInterviewStatus, requiresInterview, DECISION_LABEL, isSkillMentioned, type CvAnalysisView, type N8nDetail, type InterviewSummary } from "@/lib/recruitment";
-import { eraseCandidate, recordDecision, regenerateCandidateLink, retryCvAnalysis, retryInterviewAnalysis, revokeCandidateLink, requestInterview } from "@/lib/recruitment.functions";
+import { eraseCandidate, recordDecision, regenerateCandidateLink, retryCvAnalysis, retryInterviewAnalysis, testInterviewSummary, revokeCandidateLink, requestInterview } from "@/lib/recruitment.functions";
 import { CriterionPill, InterviewPill, RecommendationPill, ScoreBar } from "./StatusBadges";
 import { CandidateLinkBox } from "./AddApplicationDialog";
 import { cn } from "@/lib/utils";
@@ -117,6 +117,7 @@ export function CandidateSheet({ applicationId, onClose }: { applicationId: stri
   }
 
   const analysis = data?.analyses[0]?.result as CvAnalysisView | undefined;
+  const sendSummary = useServerFn(testInterviewSummary);
   const summary = data?.interview?.summary as InterviewSummary | null | undefined;
   const answers = data?.interview?.interview_answers ?? [];
 
@@ -246,6 +247,12 @@ export function CandidateSheet({ applicationId, onClose }: { applicationId: stri
               ) : data.interview?.analysis_status === "error" ? (
                 <Button size="sm" variant="outline" disabled={busy} onClick={() => run(() => retryInterview({ data: { applicationId: data.app.id } }))}><RefreshCw /> Relancer l'analyse du pré-entretien</Button>
               ) : <p className="text-sm text-muted-foreground">{data.interview?.status === "completed" ? "Analyse en cours…" : "Disponible lorsque le candidat aura terminé."}</p>}
+              <Button size="sm" variant="outline" className="mt-3" disabled={busy || !data.interview} onClick={async () => {
+                try {
+                  const r = await sendSummary({ data: { applicationId: data.app.id } });
+                  if (r.ok) toast.success("Questions-réponses envoyées à n8n."); else toast.error(`Échec de l'envoi à n8n (code ${r.status}).`);
+                } catch (e) { toast.error(e instanceof Error ? e.message : "Échec de l'envoi."); }
+              }}>Test générer synthèse</Button>
             </Section>
 
             {data.decisions.length > 0 && (

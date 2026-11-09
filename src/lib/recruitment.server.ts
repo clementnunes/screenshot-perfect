@@ -7,7 +7,7 @@ import { parseCvResult } from "./cv-contract";
 export { parseCvResult };
 
 export const CV_BULK_ANALYSIS_WEBHOOK_URL = "https://nmudhoo.n8n-wsk.com/webhook-test/a4da0844-bdf2-498c-ab39-181adaa00475";
-export const INTERVIEW_SUMMARY_WEBHOOK_URL = "https://nmudhoo.n8n-wsk.com/webhook/ed7b87a7-9c58-44f3-8529-956fadf981ce";
+export const INTERVIEW_SUMMARY_WEBHOOK_URL = "https://nmudhoo.n8n-wsk.com/webhook-test/ed7b87a7-9c58-44f3-8529-956fadf981ce";
 export const CV_ANALYSIS_WEBHOOK_URL = "https://nmudhoo.n8n-wsk.com/webhook/a4da0844-bdf2-498c-ab39-181adaa00474";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
@@ -68,7 +68,7 @@ export async function audit(actor: string, action: string, entity: string, entit
 export async function sendInterviewForSummary(applicationId: string) {
   const { data: app } = await supabaseAdmin.from("applications").select("id, job_id, candidates(full_name, email), jobs(title), interviews(id, completed_at)").eq("id", applicationId).single();
   const iv = Array.isArray(app?.interviews) ? app?.interviews[0] : app?.interviews;
-  if (!app || !iv) return;
+  if (!app || !iv) throw new Error("Aucun pré-entretien pour ce candidat.");
   const [{ data: questions }, { data: answers }] = await Promise.all([
     supabaseAdmin.from("interview_questions").select("id, question, kind, position").eq("application_id", applicationId).order("position"),
     supabaseAdmin.from("interview_answers").select("question_id, answer_text").eq("interview_id", iv.id),
@@ -89,8 +89,10 @@ export async function sendInterviewForSummary(applicationId: string) {
       }),
     });
     await audit("n8n", res.ok ? "interview_summary_sent" : "interview_summary_failed", "application", applicationId, { status: res.status });
+    return { ok: res.ok, status: res.status };
   } catch (e) {
     await audit("n8n", "interview_summary_failed", "application", applicationId, { message: e instanceof Error ? e.message : String(e) });
+    return { ok: false, status: 0 };
   }
 }
 

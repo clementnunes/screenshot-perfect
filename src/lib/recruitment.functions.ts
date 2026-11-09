@@ -95,6 +95,15 @@ export const retryInterviewAnalysis = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const testInterviewSummary = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ applicationId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await assertRecruiter(context.supabase as never);
+    const { sendInterviewForSummary } = await import("./recruitment.server");
+    return sendInterviewForSummary(data.applicationId);
+  });
+
 export const recordDecision = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) =>
