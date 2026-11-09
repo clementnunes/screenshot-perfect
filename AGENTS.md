@@ -39,3 +39,4 @@ use the editor.
 - Scoring/filter rules are pure functions in `src/lib/recruitment.ts` with tests next to them.
 - Bulk CV import stores files sequentially without AI fan-out; each stored CV is analysed only through an explicit per-candidate action to avoid uncontrolled batch inference.
 - Interview questions are application-scoped snapshots received from n8n; candidate answers and completion are forwarded to n8n and acknowledged only after its authenticated callbacks persist them, keeping n8n in charge of the interview lifecycle.
+- Job-description files are forwarded as multipart `file` through a recruiter-checked server function to the fixed public n8n webhook; validate all eight returned sections before filling the editable form, and persist only on explicit save to prevent partial or unreviewed replacements.

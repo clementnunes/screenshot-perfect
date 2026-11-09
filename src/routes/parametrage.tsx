@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Upload, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { RecruiterShell, useActiveJob } from "@/components/RecruiterShell";
 import { Card } from "@/components/ui/card";
@@ -14,6 +15,8 @@ import { Switch } from "@/components/ui/switch";
 import { COMMON_QUESTION_COUNT, PERSONALIZED_QUESTION_COUNT, weightsAreValid, weightsTotal } from "@/lib/recruitment";
 import { cn } from "@/lib/utils";
 import type { Tables } from "@/integrations/supabase/types";
+import { importJobDescription } from "@/lib/job-description.functions";
+import { validateJobDescriptionFile } from "@/lib/job-description";
 
 export const Route = createFileRoute("/parametrage")({
   head: () => ({
@@ -50,14 +53,40 @@ function Settings() {
   const [crits, setCrits] = useState<Crit[]>([]);
   const [qs, setQs] = useState<Q[]>([]);
   const [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importedName, setImportedName] = useState<string | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const importFile = useServerFn(importJobDescription);
+
+  async function uploadJobFile(file: File) {
+    setImportError(null);
+    setImporting(true);
+    try {
+      validateJobDescriptionFile(file);
+      const data = new FormData();
+      data.set("file", file);
+      const result = await importFile({ data });
+      if (!result.ok) throw new Error(result.error);
+      setForm((current) => current ? { ...current, ...result.sections } : current);
+      setImportedName(file.name);
+      toast.success("Les huit sections sont prêtes à être modifiées.");
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : "Import impossible. Votre fiche actuelle est conservée.");
+    } finally {
+      setImporting(false);
+      if (fileInput.current) fileInput.current.value = "";
+    }
+  }
 
   const { data: loaded } = useQuery({
     queryKey: ["job-config", job?.id],
     enabled: !!job,
     queryFn: async () => {
+      if (!job) return { criteria: [], questions: [] };
       const [c, q] = await Promise.all([
-        supabase.from("job_criteria").select("*").eq("job_id", job!.id).order("position"),
-        supabase.from("interview_questions").select("*").eq("job_id", job!.id).is("application_id", null).order("position"),
+        supabase.from("job_criteria").select("*").eq("job_id", job.id).order("position"),
+        supabase.from("interview_questions").select("*").eq("job_id", job.id).is("application_id", null).order("position"),
       ]);
       return { criteria: c.data ?? [], questions: q.data ?? [] };
     },
@@ -91,14 +120,14 @@ function Settings() {
       const r1 = await supabase.from("jobs").update(rest).eq("id", id);
       if (r1.error) throw r1.error;
 
-      const keepC = crits.filter((c) => c.id).map((c) => c.id!);
+      const keepC = crits.flatMap((c) => c.id ? [c.id] : []);
       const removedC = (loaded?.criteria ?? []).filter((c) => !keepC.includes(c.id)).map((c) => c.id);
       if (removedC.length) await supabase.from("job_criteria").delete().in("id", removedC);
       const r2 = await supabase.from("job_criteria").upsert(crits.map((c, i) => ({ ...(c.id ? { id: c.id } : {}), job_id: id, name: c.name.trim(), mandatory: c.mandatory, weight: c.weight, position: i })));
       if (r2.error) throw r2.error;
 
       const ordered = [...common, ...personal];
-      const keepQ = ordered.filter((q) => q.id).map((q) => q.id!);
+      const keepQ = ordered.flatMap((q) => q.id ? [q.id] : []);
       const removedQ = (loaded?.questions ?? []).filter((q) => !keepQ.includes(q.id)).map((q) => q.id);
       if (removedQ.length) await supabase.from("interview_questions").delete().in("id", removedQ);
       const r3 = await supabase.from("interview_questions").upsert(ordered.map((q, i) => ({ ...(q.id ? { id: q.id } : {}), job_id: id, kind: q.kind, question: q.question.trim(), position: i })));
@@ -116,7 +145,7 @@ function Settings() {
   const field = (k: keyof Job, label: string, area = false) => (
     <div className="space-y-1.5">
       <Label htmlFor={k}>{label}</Label>
-      {area ? <Textarea id={k} rows={3} value={String(form[k] ?? "")} onChange={set(k)} /> : <Input id={k} value={String(form[k] ?? "")} onChange={set(k)} />}
+      {area ? <Textarea id={k} rows={3} disabled={importing} value={String(form[k] ?? "")} onChange={set(k)} /> : <Input id={k} disabled={importing} value={String(form[k] ?? "")} onChange={set(k)} />}
     </div>
   );
 
@@ -144,6 +173,21 @@ function Settings() {
       </div>
 
       <Block title="Fiche de poste">
+        <div className="mb-5 space-y-3 border-b pb-5">
+          <Input ref={fileInput} id="job-description-file" type="file" className="sr-only" aria-label="Fichier de fiche de poste" accept=".pdf,.doc,.docx,.txt" disabled={importing || saving} onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file) void uploadJobFile(file);
+          }} />
+          <div className="flex flex-wrap items-center gap-3">
+            <Button variant="outline" disabled={importing || saving} onClick={() => fileInput.current?.click()}>
+              {importing ? <Loader2 className="animate-spin" /> : <Upload />}
+              {importing ? "Découpage par n8n…" : "Importer une fiche de poste"}
+            </Button>
+            <span className="text-xs text-muted-foreground">PDF, Word ou TXT · 10 Mo max.</span>
+          </div>
+          {importedName && <p className="break-words text-sm text-muted-foreground" role="status">{importedName} — sections importées, non enregistrées.</p>}
+          {importError && <p className="text-sm text-destructive" role="alert">{importError}</p>}
+        </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">{field("title", "Intitulé")}</div>
           <div className="sm:col-span-2">{field("description", "Description", true)}</div>
@@ -194,7 +238,7 @@ function Settings() {
       <div className="fixed inset-x-0 bottom-0 border-t bg-card/95 backdrop-blur">
         <div className="mx-auto flex max-w-4xl items-center justify-end gap-3 px-4 py-3">
           <span className={cn("text-xs", total === 100 ? "text-muted-foreground" : "text-destructive")}>Pondérations : {total} %</span>
-          <Button onClick={save} disabled={saving}>{saving ? "Enregistrement…" : "Enregistrer le paramétrage"}</Button>
+          <Button onClick={save} disabled={saving || importing}>{saving ? "Enregistrement…" : "Enregistrer le paramétrage"}</Button>
         </div>
       </div>
     </div>

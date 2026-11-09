@@ -2,3 +2,6 @@
 - [x] Ajouter le suivi recruteur et les échanges sécurisés de pré-entretiens avec n8n.
 - [x] Vérifier les tests et les parcours disponibles (import et message sans connexion ; workflow réel non vérifiable).
 - [ ] Brancher le workflow n8n réel (connexion refusée ; adresse de workflow non fournie).
+- [x] Ajouter l’import de fiche de poste vers l’endpoint n8n fourni et remplir les huit sections modifiables.
+- [x] Vérifier la validation du retour n8n (12 tests réussis) et l’import connecté : erreur 404 visible, fiche conservée, aucune erreur de page.
+- [ ] Vérifier un découpage réel réussi (endpoint n8n de test non enregistré ; workflow à mettre en écoute).
