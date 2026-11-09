@@ -120,6 +120,22 @@ export const recordDecision = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+/** Supprime des candidatures (et leur CV) choisies par le recruteur. */
+export const deleteApplications = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ applicationIds: z.array(z.string().uuid()).min(1).max(200) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await assertRecruiter(context.supabase as never);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: apps } = await supabaseAdmin.from("applications").select("id, cv_path").in("id", data.applicationIds);
+    const paths = (apps ?? []).map((a) => a.cv_path).filter((p): p is string => !!p);
+    if (paths.length) await supabaseAdmin.storage.from("cvs").remove(paths);
+    const { error } = await supabaseAdmin.from("applications").delete().in("id", data.applicationIds);
+    if (error) throw new Error(error.message);
+    for (const a of apps ?? []) await audit(context.userId, "application_deleted", "application", a.id);
+    return { ok: true, deleted: apps?.length ?? 0 };
+  });
+
 /** Droit à l'effacement : supprime le candidat, ses candidatures et ses CV. */
 export const eraseCandidate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

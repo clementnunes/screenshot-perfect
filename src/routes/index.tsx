@@ -4,7 +4,13 @@ import { useMemo, useState } from "react";
 import { ChevronRight, FileText, Search } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { retryCvAnalysis } from "@/lib/recruitment.functions";
+import { deleteApplications, retryCvAnalysis } from "@/lib/recruitment.functions";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { RecruiterShell, useActiveJob } from "@/components/RecruiterShell";
 import { AddApplicationDialog } from "@/components/AddApplicationDialog";
@@ -64,6 +70,41 @@ function Dashboard() {
   }), [apps]);
 
   const rows = apps.filter((a) => matchesFilter(a, filter) && (!q || a.candidates.full_name.toLowerCase().includes(q.toLowerCase())));
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [confirmDelete, setConfirmDelete] = useState<string[] | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const qc = useQueryClient();
+  const del = useServerFn(deleteApplications);
+  const analyze = useServerFn(retryCvAnalysis);
+  const visibleSelected = rows.filter((a) => selected.has(a.id));
+  const allChecked = rows.length > 0 && visibleSelected.length === rows.length;
+  const toggle = (id: string) => setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
+  async function runDelete(ids: string[]) {
+    setBulkBusy(true);
+    try {
+      const r = await del({ data: { applicationIds: ids } });
+      toast.success(`${r.deleted} candidature${r.deleted > 1 ? "s" : ""} supprimée${r.deleted > 1 ? "s" : ""}`);
+      setSelected(new Set());
+      if (open && ids.includes(open)) setOpen(null);
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Erreur"); }
+    finally { setBulkBusy(false); setConfirmDelete(null); qc.invalidateQueries({ queryKey: ["applications"] }); }
+  }
+
+  async function runBulkAnalyze() {
+    const targets = visibleSelected.filter((a) => a.cv_path && !["extracting", "analyzing"].includes(a.analysis_status));
+    if (!targets.length) { toast.error("Aucun CV analysable dans la sélection."); return; }
+    setBulkBusy(true);
+    let ok = 0;
+    // Sequential on purpose: one n8n request at a time.
+    for (const a of targets) {
+      try { const r = await analyze({ data: { applicationId: a.id } }); if (r.ok) ok++; else toast.error(`${a.candidates.full_name} : ${r.error}`); }
+      catch (e) { toast.error(`${a.candidates.full_name} : ${e instanceof Error ? e.message : "Erreur"}`); }
+      qc.invalidateQueries({ queryKey: ["applications"] });
+    }
+    setBulkBusy(false);
+    if (ok) toast.success(`Analyse lancée pour ${ok} CV`);
+  }
 
   if (isLoading) return null;
   if (!job) return <Card className="p-8 text-sm text-muted-foreground">Aucune offre. Créez-en une dans le paramétrage.</Card>;
@@ -102,6 +143,13 @@ function Dashboard() {
               </button>
             ))}
           </div>
+          {visibleSelected.length > 0 && (
+            <div className="flex items-center gap-2 border-l pl-3">
+              <span className="text-sm text-muted-foreground">{visibleSelected.length} sélectionné{visibleSelected.length > 1 ? "s" : ""}</span>
+              <Button size="sm" variant="outline" disabled={bulkBusy} onClick={runBulkAnalyze}><FileText /> Analyser</Button>
+              <Button size="sm" variant="outline" disabled={bulkBusy} className="text-destructive" onClick={() => setConfirmDelete(visibleSelected.map((a) => a.id))}><Trash2 /> Supprimer</Button>
+            </div>
+          )}
           <div className="relative ml-auto w-full sm:w-56">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input placeholder="Rechercher un candidat" className="h-9 pl-8" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -111,15 +159,19 @@ function Dashboard() {
           <table className="w-full min-w-[960px] text-sm">
             <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
               <tr>
+                <th className="w-10 px-4 py-2.5"><Checkbox aria-label="Tout sélectionner" checked={allChecked} onCheckedChange={(v) => setSelected(v ? new Set(rows.map((a) => a.id)) : new Set())} /></th>
                 {["Candidat", "Expérience professionnelle", "Compétences identifiées", "Correspondance", "Pré-entretien", "Recommandation IA", ""].map((h) => <th key={h} className="px-4 py-2.5 font-medium">{h}</th>)}
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 && (
-                <tr><td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">{apps.length ? "Aucune candidature dans ce filtre." : "Aucune candidature pour le moment. Ajoutez-en une ou connectez votre automatisation."}</td></tr>
+                <tr><td colSpan={8} className="px-4 py-12 text-center text-muted-foreground">{apps.length ? "Aucune candidature dans ce filtre." : "Aucune candidature pour le moment. Ajoutez-en une ou connectez votre automatisation."}</td></tr>
               )}
               {rows.map((a) => (
                 <tr key={a.id} className="cursor-pointer border-t hover:bg-muted/40" onClick={() => setOpen(a.id)}>
+                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                    <Checkbox aria-label={`Sélectionner ${a.candidates.full_name}`} checked={selected.has(a.id)} onCheckedChange={() => toggle(a.id)} />
+                  </td>
                   <td className="px-4 py-3">
                     <div className="font-medium">{a.candidates.full_name}</div>
                     <div className="mt-1"><AnalysisPill status={a.analysis_status} /></div>
@@ -135,7 +187,7 @@ function Dashboard() {
                   <td className="px-4 py-3"><ScoreBar score={a.match_score} /></td>
                   <td className="px-4 py-3"><InterviewPill status={a.interviewStatus} /></td>
                   <td className="px-4 py-3">{a.status === "decided" ? <span className="text-xs font-medium">Décision prise</span> : <RecommendationPill value={a.recommendation} />}</td>
-                  <td className="whitespace-nowrap px-4 py-3 text-right"><AnalyzeButton id={a.id} status={a.analysis_status} hasCv={!!a.cv_path} /><Button size="sm" variant="ghost">Examiner <ChevronRight /></Button></td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right"><AnalyzeButton id={a.id} status={a.analysis_status} hasCv={!!a.cv_path} /><Button size="sm" variant="ghost" aria-label={`Supprimer ${a.candidates.full_name}`} onClick={(e) => { e.stopPropagation(); setConfirmDelete([a.id]); }}><Trash2 /></Button><Button size="sm" variant="ghost">Examiner <ChevronRight /></Button></td>
                 </tr>
               ))}
             </tbody>
@@ -145,6 +197,18 @@ function Dashboard() {
       <p className="text-xs text-muted-foreground">Les recommandations IA sont une aide à la lecture. Aucune candidature n'est rejetée automatiquement : chaque décision est prise et confirmée par un recruteur.</p>
 
       <CandidateSheet applicationId={open} onClose={() => setOpen(null)} />
+      <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer {confirmDelete?.length === 1 ? "cette candidature" : `${confirmDelete?.length} candidatures`} ?</AlertDialogTitle>
+            <AlertDialogDescription>Le CV, son analyse et le pré-entretien associé seront définitivement supprimés.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkBusy}>Annuler</AlertDialogCancel>
+            <AlertDialogAction disabled={bulkBusy} onClick={(e) => { e.preventDefault(); if (confirmDelete) runDelete(confirmDelete); }}>Supprimer</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
