@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const JOB_DESCRIPTION_WEBHOOK_URL = "https://nmudhoo.n8n-wsk.com/webhook/197db861-6df7-4b3b-942d-146450422c45";
+export const JOB_DESCRIPTION_WEBHOOK_URL = "https://nmudhoo.n8n-wsk.com/webhook-test/197db861-6df7-4b3b-942d-146450422c45";
 
 export const JOB_DESCRIPTION_FIELDS = [
   ["title", "Intitulé"],

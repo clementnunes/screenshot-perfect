@@ -30,7 +30,7 @@ export const importJobDescription = createServerFn({ method: "POST" })
     if (!response.ok) {
       console.error(`Job description n8n failed [${response.status}]: ${raw}`);
       return { ok: false as const, error: response.status === 404
-        ? "Le webhook de production n8n est introuvable. Vérifiez que le workflow est publié et actif, puis réessayez. Votre fiche actuelle est conservée."
+        ? "n8n n’écoute pas l’adresse de test. Lancez « Execute workflow » dans n8n, puis réessayez. Votre fiche actuelle est conservée."
         : `n8n a refusé l’import (${response.status}). Votre fiche actuelle est conservée.`, status: response.status, details: raw };
     }
     try {

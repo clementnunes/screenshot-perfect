@@ -1,8 +1,8 @@
 # Import de fiche de poste
 
-Le paramétrage envoie le fichier au webhook de production fourni, après authentification du recruteur. Ce webhook public ne nécessite pas de clé d’API n8n ; aucun appel à l’API d’administration n8n n’est effectué.
+Le paramétrage envoie le fichier au webhook de test fourni, après authentification du recruteur. Ce webhook public ne nécessite pas de clé d’API n8n ; aucun appel à l’API d’administration n8n n’est effectué.
 
-- URL : `https://nmudhoo.n8n-wsk.com/webhook/197db861-6df7-4b3b-942d-146450422c45`
+- URL : `https://nmudhoo.n8n-wsk.com/webhook-test/197db861-6df7-4b3b-942d-146450422c45`
 - Méthode : `POST`, corps `multipart/form-data`, fichier binaire sous la clé `file`.
 - Formats acceptés : PDF, DOC, DOCX, TXT ; 10 Mo maximum.
 - n8n doit répondre à cette même requête avec un objet JSON contenant les huit sections ; configurer « Respond to Webhook » après l’extraction, pas une simple confirmation de lancement.
@@ -23,4 +23,4 @@ Le paramétrage envoie le fichier au webhook de production fourni, après authen
 
 Une section non renseignée dans le document doit être une chaîne vide. Ne pas inventer son contenu. Un retour incomplet est rejeté et la fiche actuelle reste intacte. Un import réussi remplit le formulaire sans enregistrer automatiquement : le recruteur peut modifier les sections avant d’enregistrer.
 
-L’URL `/webhook/` utilise le workflow publié et actif ; il n’est pas nécessaire de lancer « Execute workflow » avant chaque import. Le découpage réel reste à vérifier avec un fichier de fiche de poste et la réponse du workflow de production.
+L’URL `/webhook-test/` nécessite de lancer « Execute workflow » dans n8n avant chaque essai. Le découpage réel reste à vérifier avec un fichier de fiche de poste et la réponse du workflow de test.

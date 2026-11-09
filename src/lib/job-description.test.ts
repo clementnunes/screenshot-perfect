@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { JOB_DESCRIPTION_WEBHOOK_URL, parseJobDescriptionResponse } from "./job-description";
 
 describe("fiche de poste découpée par n8n", () => {
-  it("utilise l’URL de production fournie pour le découpage", () => {
-    expect(JOB_DESCRIPTION_WEBHOOK_URL).toBe("https://nmudhoo.n8n-wsk.com/webhook/197db861-6df7-4b3b-942d-146450422c45");
+  it("utilise l’URL de test fournie pour le découpage", () => {
+    expect(JOB_DESCRIPTION_WEBHOOK_URL).toBe("https://nmudhoo.n8n-wsk.com/webhook-test/197db861-6df7-4b3b-942d-146450422c45");
   });
   const sections = {
     "Intitulé": "Responsable entrepôt", "Description": "Coordonne la logistique.",
