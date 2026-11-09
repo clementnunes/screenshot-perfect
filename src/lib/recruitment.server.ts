@@ -6,6 +6,8 @@ import { prepareExistingQuestions } from "./candidate-portal.server";
 import { parseCvResult } from "./cv-contract";
 export { parseCvResult };
 
+export const CV_BULK_ANALYSIS_WEBHOOK_URL = "https://nmudhoo.n8n-wsk.com/webhook-test/a4da0844-bdf2-498c-ab39-181adaa00475";
+export const INTERVIEW_SUMMARY_WEBHOOK_URL = "https://nmudhoo.n8n-wsk.com/webhook-test/ed7b87a7-9c58-44f3-8529-956fadf981ce";
 export const CV_ANALYSIS_WEBHOOK_URL = "https://nmudhoo.n8n-wsk.com/webhook-test/a4da0844-bdf2-498c-ab39-181adaa00474";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
@@ -62,6 +64,36 @@ export async function audit(actor: string, action: string, entity: string, entit
 }
 
 /** Records a notification and forwards it to n8n when an outbound URL is configured. */
+/** Sends the finished pre-interview questions and answers to n8n, which owns the summary. */
+export async function sendInterviewForSummary(applicationId: string) {
+  const { data: app } = await supabaseAdmin.from("applications").select("id, job_id, candidates(full_name, email), jobs(title), interviews(id, completed_at)").eq("id", applicationId).single();
+  const iv = Array.isArray(app?.interviews) ? app?.interviews[0] : app?.interviews;
+  if (!app || !iv) return;
+  const [{ data: questions }, { data: answers }] = await Promise.all([
+    supabaseAdmin.from("interview_questions").select("id, question, kind, position").eq("application_id", applicationId).order("position"),
+    supabaseAdmin.from("interview_answers").select("question_id, answer_text").eq("interview_id", iv.id),
+  ]);
+  const byQ = new Map((answers ?? []).map((a) => [a.question_id, a.answer_text]));
+  try {
+    const res = await fetch(INTERVIEW_SUMMARY_WEBHOOK_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-webhook-secret": readSecret("N8N_WEBHOOK_SECRET") ?? "", "idempotency-key": iv.id },
+      body: JSON.stringify({
+        type: "interview_summary_requested",
+        application_id: applicationId,
+        interview_id: iv.id,
+        submitted_at: iv.completed_at,
+        job: { id: app.job_id, title: app.jobs?.title },
+        candidate: { full_name: app.candidates?.full_name },
+        qa: (questions ?? []).map((q) => ({ position: q.position, kind: q.kind, question: q.question, answer: byQ.get(q.id) ?? "" })),
+      }),
+    });
+    await audit("n8n", res.ok ? "interview_summary_sent" : "interview_summary_failed", "application", applicationId, { status: res.status });
+  } catch (e) {
+    await audit("n8n", "interview_summary_failed", "application", applicationId, { message: e instanceof Error ? e.message : String(e) });
+  }
+}
+
 export async function notify(type: string, applicationId: string | null, payload: Record<string, unknown>, required = false) {
   const url = readSecret("N8N_OUTBOUND_URL");
   if (!url && required) throw new Error("Le workflow n8n n’est pas encore connecté.");
@@ -132,7 +164,7 @@ const ETHICS = `Règles impératives :
 - "source" indique la page du CV (ex: "CV, page 2") ou la réponse concernée.
 - Réponds en français.`;
 
-export async function runCvAnalysis(applicationId: string) {
+export async function runCvAnalysis(applicationId: string, webhookUrl = CV_ANALYSIS_WEBHOOK_URL) {
   const { data: app, error } = await supabaseAdmin
     .from("applications")
     .select("*, jobs(*)")
@@ -155,7 +187,7 @@ export async function runCvAnalysis(applicationId: string) {
     const { data: criteria } = await supabaseAdmin.from("job_criteria").select("*").eq("job_id", job.id).order("position");
 
     // CV analysis is delegated to n8n; it answers through the "cv-analysis-result" callback.
-    const res = await fetch(CV_ANALYSIS_WEBHOOK_URL, {
+    const res = await fetch(webhookUrl, {
       method: "POST",
       headers: { "content-type": "application/json", "x-webhook-secret": readSecret("N8N_WEBHOOK_SECRET") ?? "", "idempotency-key": crypto.randomUUID() },
       body: JSON.stringify({

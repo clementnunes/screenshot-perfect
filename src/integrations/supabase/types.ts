@@ -386,6 +386,7 @@ export type Database = {
           invitation_message: string
           link_validity_days: number
           location: string
+          match_threshold: number
           missions: string
           rejection_template: string
           sender_email: string
@@ -404,6 +405,7 @@ export type Database = {
           invitation_message?: string
           link_validity_days?: number
           location?: string
+          match_threshold?: number
           missions?: string
           rejection_template?: string
           sender_email?: string
@@ -422,6 +424,7 @@ export type Database = {
           invitation_message?: string
           link_validity_days?: number
           location?: string
+          match_threshold?: number
           missions?: string
           rejection_template?: string
           sender_email?: string

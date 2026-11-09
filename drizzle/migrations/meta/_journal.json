@@ -15,6 +15,13 @@
       "when": 1794229060511,
       "tag": "0001_candidate_portal_secure_interviews",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794232898312,
+      "tag": "0002_job_match_threshold",
+      "breakpoints": true
     }
   ]
 }

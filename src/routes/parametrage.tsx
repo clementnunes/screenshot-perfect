@@ -101,7 +101,7 @@ function Settings() {
 
   if (!form) return null;
   const set = (k: keyof Job) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-    setForm({ ...form, [k]: k === "link_validity_days" ? Number(e.target.value) : e.target.value });
+    setForm({ ...form, [k]: k === "link_validity_days" || k === "match_threshold" ? Number(e.target.value) : e.target.value });
 
   const total = weightsTotal(crits);
   const common = qs.filter((q) => q.kind === "common");
@@ -114,6 +114,7 @@ function Settings() {
     if (common.length !== COMMON_QUESTION_COUNT || common.some((q) => !q.question.trim())) { toast.error(`Définissez exactement ${COMMON_QUESTION_COUNT} questions communes.`); return; }
     if (personal.length !== PERSONALIZED_QUESTION_COUNT || personal.some((q) => !q.question.trim())) { toast.error(`Définissez ${PERSONALIZED_QUESTION_COUNT} consignes de questions personnalisées.`); return; }
     if (form.link_validity_days < 1 || form.link_validity_days > 90) { toast.error("La validité du lien doit être comprise entre 1 et 90 jours."); return; }
+    if (!(form.match_threshold >= 0 && form.match_threshold <= 100)) { toast.error("Le seuil de correspondance doit être compris entre 0 et 100 %."); return; }
     setSaving(true);
     try {
       const { id, created_at: _c, updated_at: _u, ...rest } = form;
@@ -227,6 +228,7 @@ function Settings() {
 
       <Block title="Paramètres">
         <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5"><Label htmlFor="match_threshold">Seuil de correspondance pour le pré-entretien (%)</Label><Input id="match_threshold" type="number" min={0} max={100} value={form.match_threshold} onChange={set("match_threshold")} /><p className="text-xs text-muted-foreground">Au-delà de ce seuil, le profil est signalé « Pré-entretien à faire ».</p></div>
           <div className="space-y-1.5"><Label htmlFor="link_validity_days">Durée de validité du lien candidat (jours)</Label><Input id="link_validity_days" type="number" min={1} max={90} value={form.link_validity_days} onChange={set("link_validity_days")} /></div>
           {field("sender_email", "Adresse email d'expédition")}
           <div className="sm:col-span-2">{field("invitation_message", "Message d'invitation", true)}</div>

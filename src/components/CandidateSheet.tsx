@@ -11,7 +11,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ANALYSIS_STEPS, analysisScore, DECISION_LABEL, isSkillMentioned, type CvAnalysisView, type N8nDetail, type InterviewSummary } from "@/lib/recruitment";
+import { ANALYSIS_STEPS, analysisScore, requiresInterview, DECISION_LABEL, isSkillMentioned, type CvAnalysisView, type N8nDetail, type InterviewSummary } from "@/lib/recruitment";
 import { eraseCandidate, recordDecision, regenerateCandidateLink, retryCvAnalysis, retryInterviewAnalysis, revokeCandidateLink, requestInterview } from "@/lib/recruitment.functions";
 import { CriterionPill, InterviewPill, RecommendationPill, ScoreBar } from "./StatusBadges";
 import { CandidateLinkBox } from "./AddApplicationDialog";
@@ -81,7 +81,7 @@ export function CandidateSheet({ applicationId, onClose }: { applicationId: stri
     queryFn: async () => {
       const id = applicationId;
       if (!id) throw new Error("Candidature indisponible.");
-      const { data: app, error } = await supabase.from("applications").select("*, candidates(*), jobs(title, rejection_template)").eq("id", id).single();
+      const { data: app, error } = await supabase.from("applications").select("*, candidates(*), jobs(title, rejection_template, match_threshold)").eq("id", id).single();
       if (error) throw error;
       const [analyses, interview, questions, decisions] = await Promise.all([
         supabase.from("cv_analyses").select("*").eq("application_id", id).order("created_at", { ascending: false }),
@@ -133,6 +133,7 @@ export function CandidateSheet({ applicationId, onClose }: { applicationId: stri
               <SheetDescription>{data.app.candidates.email} · {data.app.jobs.title} · reçue le {new Date(data.app.created_at).toLocaleDateString("fr-FR")}</SheetDescription>
               <div className="flex flex-wrap items-center gap-3 pt-3">
                 <ScoreBar score={analysisScore(analysis, data.app.match_score)} />
+                {requiresInterview(analysisScore(analysis, data.app.match_score), data.app.jobs.match_threshold) && <span className="rounded bg-primary-soft px-2 py-0.5 text-xs font-medium text-primary">Pré-entretien à faire (au-delà du seuil de {data.app.jobs.match_threshold} %)</span>}
                 <RecommendationPill value={data.app.recommendation} />
                 <InterviewPill status={data.interview?.status} />
               </div>

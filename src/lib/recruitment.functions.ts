@@ -79,10 +79,11 @@ export const revokeCandidateLink = createServerFn({ method: "POST" })
 
 export const retryCvAnalysis = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ applicationId: z.string().uuid() }).parse(d))
+  .inputValidator((d) => z.object({ applicationId: z.string().uuid(), bulk: z.boolean().optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await assertRecruiter(context.supabase as never);
-    return runCvAnalysis(data.applicationId);
+    const { CV_BULK_ANALYSIS_WEBHOOK_URL, CV_ANALYSIS_WEBHOOK_URL } = await import("./recruitment.server");
+    return runCvAnalysis(data.applicationId, data.bulk ? CV_BULK_ANALYSIS_WEBHOOK_URL : CV_ANALYSIS_WEBHOOK_URL);
   });
 
 export const retryInterviewAnalysis = createServerFn({ method: "POST" })

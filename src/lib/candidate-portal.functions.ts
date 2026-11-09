@@ -118,8 +118,9 @@ export const submitPortalInterview = createServerFn({ method: "POST" })
     const submitted = await supabaseAdmin.rpc("submit_portal_interview", { p_application: app.id });
     if (submitted.error) throw submitted.error;
     if (app.interviews?.status !== "completed") {
-      const { notify, audit } = await import("./recruitment.server");
+      const { notify, audit, sendInterviewForSummary } = await import("./recruitment.server");
       await audit("candidate", "interview_submitted", "application", app.id);
+      await sendInterviewForSummary(app.id);
       await notify("interview_submit", app.id, { interview_id: submitted.data, submitted_at: new Date().toISOString() });
     }
     return { ok: true };

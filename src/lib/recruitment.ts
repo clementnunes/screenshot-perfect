@@ -275,3 +275,10 @@ export function analysisScore(a: CvAnalysisView | undefined, stored: number | nu
   if (a.detail.scoreGlobal != null) return a.detail.scoreGlobal;
   return computeCategoryScore(a.detail.categories) ?? stored;
 }
+
+
+/** A profile whose match score is strictly above the job's global threshold should take the pre-interview. */
+export function requiresInterview(score: number | null | undefined, threshold: number | null | undefined): boolean {
+  if (score == null || threshold == null || !Number.isFinite(score)) return false;
+  return score > threshold;
+}

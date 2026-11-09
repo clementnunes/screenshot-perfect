@@ -1,0 +1,1 @@
+ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS match_threshold integer NOT NULL DEFAULT 70 CHECK (match_threshold BETWEEN 0 AND 100);

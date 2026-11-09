@@ -20,7 +20,7 @@ import { AnalysisPill, InterviewPill, RecommendationPill, ScoreBar } from "@/com
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { FILTERS, analysisScore, analysisSkills, matchesFilter, type CvAnalysisView, type DashboardFilter } from "@/lib/recruitment";
+import { FILTERS, analysisScore, requiresInterview, analysisSkills, matchesFilter, type CvAnalysisView, type DashboardFilter } from "@/lib/recruitment";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
@@ -98,7 +98,7 @@ function Dashboard() {
     let ok = 0;
     // Sequential on purpose: one n8n request at a time.
     for (const a of targets) {
-      try { const r = await analyze({ data: { applicationId: a.id } }); if (r.ok) ok++; else toast.error(`${a.candidates.full_name} : ${r.error}`); }
+      try { const r = await analyze({ data: { applicationId: a.id, bulk: true } }); if (r.ok) ok++; else toast.error(`${a.candidates.full_name} : ${r.error}`); }
       catch (e) { toast.error(`${a.candidates.full_name} : ${e instanceof Error ? e.message : "Erreur"}`); }
       qc.invalidateQueries({ queryKey: ["applications"] });
     }
@@ -184,7 +184,7 @@ function Dashboard() {
                       {!a.skills.length && <span className="text-muted-foreground">—</span>}
                     </div>
                   </td>
-                  <td className="px-4 py-3"><ScoreBar score={a.match_score} /></td>
+                  <td className="px-4 py-3"><ScoreBar score={a.match_score} />{requiresInterview(a.match_score, job?.match_threshold) && <span className="mt-1 inline-block rounded bg-primary-soft px-1.5 py-0.5 text-xs font-medium text-primary">Pré-entretien à faire</span>}</td>
                   <td className="px-4 py-3"><InterviewPill status={a.interviewStatus} /></td>
                   <td className="px-4 py-3">{a.status === "decided" ? <span className="text-xs font-medium">Décision prise</span> : <RecommendationPill value={a.recommendation} />}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-right"><AnalyzeButton id={a.id} status={a.analysis_status} hasCv={!!a.cv_path} /><Button size="sm" variant="ghost" aria-label={`Supprimer ${a.candidates.full_name}`} onClick={(e) => { e.stopPropagation(); setConfirmDelete([a.id]); }}><Trash2 /></Button><Button size="sm" variant="ghost">Examiner <ChevronRight /></Button></td>
