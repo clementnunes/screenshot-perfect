@@ -71,7 +71,7 @@ Orvane Recrutement modernise le processus de recrutement :
 │   ├── lib/ <br/>
 │   │   ├── candidate-portal.* # Fonctions serveur et contrats du portail candidat <br/>
 │   │   ├── cv-contract.ts     # Schéma Zod et parsing des retours n8n <br/>
-│   │   ├── cv-analysis-request.ts # Préparation des payloads unitaires et bulk n8n <br/>v
+│   │   ├── cv-analysis-request.ts # Préparation des payloads unitaires et bulk n8n <br/>
 │   │   ├── interview-summary.ts   # Extraction et parsing des synthèses n8n <br/>
 │   │   ├── password.ts        # Hachage et vérification PBKDF2 <br/>
 │   │   ├── pdf.ts             # Extraction de texte multi-pages depuis les PDF <br/>
