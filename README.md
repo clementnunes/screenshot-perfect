@@ -64,7 +64,7 @@ Orvane Recrutement modernise le processus de recrutement :
 ## 📁 Arborescence du projet
 
 
-├── docs/                      # Documentation des contrats n8n (CV, entretiens, fiches de poste)
+├── docs/                      # Documentation des contrats n8n (CV, entretiens, fiches de poste) <br/>
 ├── src/
 │   ├── components/            # Composants UI (RecruiterShell, CandidateSheet, BulkCvDialog, etc.)
 │   ├── integrations/          # Clients Lovable Cloud / Supabase
