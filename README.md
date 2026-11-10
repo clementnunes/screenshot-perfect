@@ -65,26 +65,26 @@ Orvane Recrutement modernise le processus de recrutement :
 
 
 ├── docs/                      # Documentation des contrats n8n (CV, entretiens, fiches de poste) <br/>
-├── src/
-│   ├── components/            # Composants UI (RecruiterShell, CandidateSheet, BulkCvDialog, etc.)
-│   ├── integrations/          # Clients Lovable Cloud / Supabase
-│   ├── lib/
-│   │   ├── candidate-portal.* # Fonctions serveur et contrats du portail candidat
-│   │   ├── cv-contract.ts     # Schéma Zod et parsing des retours n8n
-│   │   ├── cv-analysis-request.ts # Préparation des payloads unitaires et bulk n8n
-│   │   ├── interview-summary.ts   # Extraction et parsing des synthèses n8n
-│   │   ├── password.ts        # Hachage et vérification PBKDF2
-│   │   ├── pdf.ts             # Extraction de texte multi-pages depuis les PDF
-│   │   ├── recruitment.*      # Logique métier, scores pondérés et server functions
-│   │   └── webhook-auth.ts    # Authentification des requêtes webhook entrantes
-│   ├── routes/
-│   │   ├── index.tsx          # Tableau de bord recruteur principal
-│   │   ├── candidats.tsx      # Page publique d'import candidat
-│   │   ├── parametrage.tsx    # Configuration fiche de poste et critères
-│   │   ├── rendez-vous.tsx    # Suivi des invitations aux entretiens
-│   │   ├── espace-candidat*   # Parcours complet du pré-entretien candidat
-│   │   └── api/public/        # Endpoints webhook n8n et fiche de poste
-│   └── styles.css             # Tokens CSS globaux et configuration Tailwind
+├── src/    <br/>
+│   ├── components/            # Composants UI (RecruiterShell, CandidateSheet, BulkCvDialog, etc.) <br/>
+│   ├── integrations/          # Clients Lovable Cloud / Supabase <br/>
+│   ├── lib/ <br/>
+│   │   ├── candidate-portal.* # Fonctions serveur et contrats du portail candidat <br/>
+│   │   ├── cv-contract.ts     # Schéma Zod et parsing des retours n8n <br/>
+│   │   ├── cv-analysis-request.ts # Préparation des payloads unitaires et bulk n8n <br/>v
+│   │   ├── interview-summary.ts   # Extraction et parsing des synthèses n8n <br/>
+│   │   ├── password.ts        # Hachage et vérification PBKDF2 <br/>
+│   │   ├── pdf.ts             # Extraction de texte multi-pages depuis les PDF <br/>
+│   │   ├── recruitment.*      # Logique métier, scores pondérés et server functions <br/>
+│   │   └── webhook-auth.ts    # Authentification des requêtes webhook entrantes <br/>
+│   ├── routes/ <br/>
+│   │   ├── index.tsx          # Tableau de bord recruteur principal <br/>
+│   │   ├── candidats.tsx      # Page publique d'import candidat <br/>
+│   │   ├── parametrage.tsx    # Configuration fiche de poste et critères <br/>
+│   │   ├── rendez-vous.tsx    # Suivi des invitations aux entretiens <br/>
+│   │   ├── espace-candidat*   # Parcours complet du pré-entretien candidat <br/>
+│   │   └── api/public/        # Endpoints webhook n8n et fiche de poste <br/>
+│   └── styles.css             # Tokens CSS globaux et configuration Tailwind <br/>
 # Orvane Recrutement
 
 ##⚙️ Configuration & Variables d'environnement
