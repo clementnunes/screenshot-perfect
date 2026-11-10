@@ -93,10 +93,10 @@ Orvane Recrutement modernise le processus de recrutement :
 L'application s'appuie sur les variables d'environnement suivantes :
 
 
-Variable	Description
-VITE_SUPABASE_URL	URL de l'instance backend
-VITE_SUPABASE_PUBLISHABLE_KEY	Clé publique pour les requêtes client RLS
-N8N_WEBHOOK_SECRET	Secret partagé pour sécuriser les webhooks entrants (x-webhook-secret)
+Variable	Description<br/>
+VITE_SUPABASE_URL	URL de l'instance backend<br/>
+VITE_SUPABASE_PUBLISHABLE_KEY	Clé publique pour les requêtes client RLS<br/>
+N8N_WEBHOOK_SECRET	Secret partagé pour sécuriser les webhooks entrants (x-webhook-secret)<br/>
 N8N_OUTBOUND_URL	(Optionnel) URL de callback externe
 
 
